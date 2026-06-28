@@ -8,7 +8,7 @@ import os
 
 load_dotenv()
 
-app = FastAPI(title="AIA Capstone MCP Server", version="2.0.0")
+app = FastAPI(title="AIA Capstone MCP Server", version="2.1.0")
 
 supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
@@ -19,7 +19,7 @@ supabase: Client = create_client(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "AIA MCP Server", "version": "2.0.0"}
+    return {"status": "ok", "service": "AIA MCP Server", "version": "2.1.0"}
 
 # ── CLAIMS ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +76,25 @@ def get_policies(
     if not response.data:
         raise HTTPException(status_code=404, detail="No policies found")
     return response.data
+
+# ── CLAIM DOMAIN LOOKUP ───────────────────────────────────────────────────────
+
+@app.get("/claims/domain")
+def get_claim_domain(claim_id: str = Query(...)):
+    response = (
+        supabase.table("claims")
+        .select("claim_type, policy_id")
+        .eq("claim_id", claim_id)
+        .execute()
+    )
+    if not response.data:
+        raise HTTPException(status_code=404, detail=f"Claim {claim_id} not found")
+    claim = response.data[0]
+    return {
+        "claim_id": claim_id,
+        "domain": claim["claim_type"],
+        "linked_policy_id": claim["policy_id"]
+    }
 
 # ── ELIGIBILITY RULES ─────────────────────────────────────────────────────────
 
