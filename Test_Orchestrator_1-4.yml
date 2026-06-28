@@ -1,0 +1,4360 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: Test_Orchestrator_1
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.3.8@592c8252795b5f75807de2d609a03196ed02596b409f7642b4a07548c7ff57ef
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: ''
+    id: 4ce9dcfb-d778-4a72-8bf6-1f16f0165eea
+    name: pending_query
+    selector:
+    - conversation
+    - pending_query
+    value: ''
+    value_type: string
+  - description: ''
+    id: 6a53a121-0f6e-47ed-b672-8c2233bbeabf
+    name: pending_intents_json
+    selector:
+    - conversation
+    - pending_intents_json
+    value:
+      primary_intent: unknown
+      route_typeZ: unknown
+    value_type: object
+  - description: ''
+    id: 21e70602-ecef-4563-a5de-963a75b2200f
+    name: effective_query
+    selector:
+    - conversation
+    - effective_query
+    value: ''
+    value_type: string
+  - description: ''
+    id: f26756ef-31bc-4c5d-a208-71f8f106912f
+    name: last_intent_list
+    selector:
+    - conversation
+    - last_intent_list
+    value: []
+    value_type: array[object]
+  - description: ''
+    id: 98a0bd7d-f65b-40d6-9b6a-e12827f0ffde
+    name: last_primary_intent
+    selector:
+    - conversation
+    - last_primary_intent
+    value: ''
+    value_type: string
+  - description: ''
+    id: 56bf9dc7-37ee-4e98-8ede-bfc51d585417
+    name: last_combined_sections
+    selector:
+    - conversation
+    - last_combined_sections
+    value: ''
+    value_type: string
+  - description: ''
+    id: 974bea6f-c300-48a1-8e1b-cf6ad3c4f35d
+    name: pending_intent_list
+    selector:
+    - conversation
+    - pending_intent_list
+    value: []
+    value_type: array[object]
+  - description: ''
+    id: 23759da9-a26f-434d-8bd1-f25e0189fb32
+    name: pending_primary_intent
+    selector:
+    - conversation
+    - pending_primary_intent
+    value: ''
+    value_type: string
+  - description: ''
+    id: c4332f14-725f-4cbb-b361-ae4908538191
+    name: last_answer_type
+    selector:
+    - conversation
+    - last_answer_type
+    value: ''
+    value_type: string
+  - description: ''
+    id: c994919a-c922-4ef5-84dd-469913355323
+    name: last_faq_answer
+    selector:
+    - conversation
+    - last_faq_answer
+    value: ''
+    value_type: string
+  - description: ''
+    id: 7b9ea691-bd7d-4056-9d70-f03b6db5e292
+    name: awaiting_policy_id
+    selector:
+    - conversation
+    - awaiting_policy_id
+    value: false
+    value_type: boolean
+  - description: ''
+    id: 1b90009d-4d1d-473b-858b-25c850c04214
+    name: awaiting_claim_id
+    selector:
+    - conversation
+    - awaiting_claim_id
+    value: false
+    value_type: boolean
+  - description: ''
+    id: 824f6475-171f-4c16-b5e8-68f065b8ea09
+    name: intended_domain
+    selector:
+    - conversation
+    - intended_domain
+    value: ''
+    value_type: string
+  - description: ''
+    id: 5136119c-5aaf-40e2-91e6-852acc45d3bd
+    name: policy_id
+    selector:
+    - conversation
+    - policy_id
+    value: ''
+    value_type: string
+  - description: ''
+    id: 416f44cc-d610-493c-a7f7-fde29fefef9b
+    name: claim_id
+    selector:
+    - conversation
+    - claim_id
+    value: ''
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: 1782159569238-llm
+      source: '1782159569238'
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: if-else
+      id: llm-source-1782160405124-target
+      source: llm
+      sourceHandle: source
+      target: '1782160405124'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782160405124-true-1782160583589-target
+      source: '1782160405124'
+      sourceHandle: 'true'
+      target: '1782160583589'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: if-else
+      id: 1782160583589-source-1782162094955-target
+      source: '1782160583589'
+      sourceHandle: source
+      target: '1782162094955'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782162094955-true-1782162043099-target
+      source: '1782162094955'
+      sourceHandle: 'true'
+      target: '1782162043099'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: answer
+      id: 1782162094955-false-1782160654780-target
+      source: '1782162094955'
+      sourceHandle: 'false'
+      target: '1782160654780'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1782162094955-8b69a327-0147-4ce8-9c4b-dd248f4884af-1782162299299-target
+      source: '1782162094955'
+      sourceHandle: 8b69a327-0147-4ce8-9c4b-dd248f4884af
+      target: '1782162299299'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: answer
+      id: 1782162043099-true-1782160654780-target
+      source: '1782162043099'
+      sourceHandle: 'true'
+      target: '1782160654780'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782162043099-false-1782162400702-target
+      source: '1782162043099'
+      sourceHandle: 'false'
+      target: '1782162400702'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1782162400702-false-1782162456703-target
+      source: '1782162400702'
+      sourceHandle: 'false'
+      target: '1782162456703'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: 1782162456703-source-1782162498221-target
+      source: '1782162456703'
+      sourceHandle: source
+      target: '1782162498221'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782162498221-source-1782162518112-target
+      source: '1782162498221'
+      sourceHandle: source
+      target: '1782162518112'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: 1782162299299-source-1782162710556-target
+      source: '1782162299299'
+      sourceHandle: source
+      target: '1782162710556'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782162710556-source-1782162734175-target
+      source: '1782162710556'
+      sourceHandle: source
+      target: '1782162734175'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1782160405124-false-1782163006811-target
+      source: '1782160405124'
+      sourceHandle: 'false'
+      target: '1782163006811'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: if-else
+      id: 1782163006811-source-1782163158917-target
+      source: '1782163006811'
+      sourceHandle: source
+      target: '1782163158917'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: answer
+      id: 1782163158917-false-1782163470788-target
+      source: '1782163158917'
+      sourceHandle: 'false'
+      target: '1782163470788'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1782163158917-27b84adb-3cc3-4ac0-8bdf-40eb352587b2-1782163562656-target
+      source: '1782163158917'
+      sourceHandle: 27b84adb-3cc3-4ac0-8bdf-40eb352587b2
+      target: '1782163562656'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: 1782163562656-source-1782163602008-target
+      source: '1782163562656'
+      sourceHandle: source
+      target: '1782163602008'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782163602008-source-1782163620634-target
+      source: '1782163602008'
+      sourceHandle: source
+      target: '1782163620634'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1782163158917-true-1782164052400-target
+      source: '1782163158917'
+      sourceHandle: 'true'
+      target: '1782164052400'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: 1782164052400-source-1782164280776-target
+      source: '1782164052400'
+      sourceHandle: source
+      target: '1782164280776'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782164280776-true-1782164515783-target
+      source: '1782164280776'
+      sourceHandle: 'true'
+      target: '1782164515783'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782164280776-false-1782164576135-target
+      source: '1782164280776'
+      sourceHandle: 'false'
+      target: '1782164576135'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: answer
+      id: 1782164515783-false-1782164631575-target
+      source: '1782164515783'
+      sourceHandle: 'false'
+      target: '1782164631575'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782164631575-source-1782164654120-target
+      source: '1782164631575'
+      sourceHandle: source
+      target: '1782164654120'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782164515783-true-1782164731529-target
+      source: '1782164515783'
+      sourceHandle: 'true'
+      target: '1782164731529'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782164576135-true-1782164916534-target
+      source: '1782164576135'
+      sourceHandle: 'true'
+      target: '1782164916534'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: answer
+      id: 1782164916534-false-1782164950838-target
+      source: '1782164916534'
+      sourceHandle: 'false'
+      target: '1782164950838'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782164950838-source-1782164971603-target
+      source: '1782164950838'
+      sourceHandle: source
+      target: '1782164971603'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782164916534-true-1782165012674-target
+      source: '1782164916534'
+      sourceHandle: 'true'
+      target: '1782165012674'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: llm
+      id: 1782164576135-false-1782165106950-target
+      source: '1782164576135'
+      sourceHandle: 'false'
+      target: '1782165106950'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1782165106950-source-1782165219921-target
+      source: '1782165106950'
+      sourceHandle: source
+      target: '1782165219921'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1782165219921-source-1782165574853-target
+      source: '1782165219921'
+      sourceHandle: source
+      target: '1782165574853'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: 1782165574853-source-1782165656117-target
+      source: '1782165574853'
+      sourceHandle: source
+      target: '1782165656117'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1782162400702-true-1782167905101-target
+      selected: false
+      source: '1782162400702'
+      sourceHandle: 'true'
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1782164731529-source-1782167905101-target
+      selected: false
+      source: '1782164731529'
+      sourceHandle: source
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1782165012674-source-1782167905101-target
+      selected: false
+      source: '1782165012674'
+      sourceHandle: source
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1782165656117-false-1782167905101-target
+      selected: false
+      source: '1782165656117'
+      sourceHandle: 'false'
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1782168102268-c729d358-9799-4fb8-8e0b-258170aec653-1782167905101-target
+      selected: false
+      source: '1782168102268'
+      sourceHandle: c729d358-9799-4fb8-8e0b-258170aec653
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782168102268-true-1782168190904-target
+      source: '1782168102268'
+      sourceHandle: 'true'
+      target: '1782168190904'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1782168190904-source-1782167905101-target
+      selected: false
+      source: '1782168190904'
+      sourceHandle: source
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782165656117-true-1782168102268-target
+      source: '1782165656117'
+      sourceHandle: 'true'
+      target: '1782168102268'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: 1782165656117-324fdf77-b9d5-4241-bb2b-b6ee2ea6a3cf-1782168082000-target
+      source: '1782165656117'
+      sourceHandle: 324fdf77-b9d5-4241-bb2b-b6ee2ea6a3cf
+      target: '1782168082000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782168102268-false-1782168375142-target
+      source: '1782168102268'
+      sourceHandle: 'false'
+      target: '1782168375142'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: 1782168375142-source-1782168995546-target
+      source: '1782168375142'
+      sourceHandle: source
+      target: '1782168995546'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1782168082000-a2a6eb89-39c5-4ad4-9406-e10d013f763f-1782167905101-target
+      selected: false
+      source: '1782168082000'
+      sourceHandle: a2a6eb89-39c5-4ad4-9406-e10d013f763f
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782168082000-true-1782169293120-target
+      source: '1782168082000'
+      sourceHandle: 'true'
+      target: '1782169293120'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1782169293120-source-1782167905101-target
+      selected: false
+      source: '1782169293120'
+      sourceHandle: source
+      target: '1782167905101'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: 1782168082000-false-17821696382670-target
+      source: '1782168082000'
+      sourceHandle: 'false'
+      target: '17821696382670'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: 17821696382670-source-1782169682770-target
+      source: '17821696382670'
+      sourceHandle: source
+      target: '1782169682770'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782169682770-source-1782169710561-target
+      source: '1782169682770'
+      sourceHandle: source
+      target: '1782169710561'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: assigner
+      id: 1782167905101-source-1782169834376-target
+      source: '1782167905101'
+      sourceHandle: source
+      target: '1782169834376'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: iteration
+      id: 1782169834376-source-1782169880290-target
+      source: '1782169834376'
+      sourceHandle: source
+      target: '1782169880290'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: iteration-start
+        targetType: code
+      id: 1782169880290start-source-1782169896888-target
+      source: 1782169880290start
+      sourceHandle: source
+      target: '1782169896888'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: code
+        targetType: if-else
+      id: 1782169896888-source-1782169982036-target
+      source: '1782169896888'
+      sourceHandle: source
+      target: '1782169982036'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: if-else
+        targetType: agent
+      id: 1782169982036-true-1782170184175-target
+      source: '1782169982036'
+      sourceHandle: 'true'
+      target: '1782170184175'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: if-else
+        targetType: answer
+      id: 1782169982036-false-1782170199121-target
+      source: '1782169982036'
+      sourceHandle: 'false'
+      target: '1782170199121'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: if-else
+        targetType: agent
+      id: 1782169982036-47602752-5ab5-4f85-ab8d-07d845d11b57-1782170280774-target
+      source: '1782169982036'
+      sourceHandle: 47602752-5ab5-4f85-ab8d-07d845d11b57
+      target: '1782170280774'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: if-else
+        targetType: agent
+      id: 1782169982036-a80e1cf7-a4fd-482d-a40d-929cf6f27cce-1782170297850-target
+      source: '1782169982036'
+      sourceHandle: a80e1cf7-a4fd-482d-a40d-929cf6f27cce
+      target: '1782170297850'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: if-else
+        targetType: agent
+      id: 1782169982036-4e2c33ab-1ccf-455b-af68-5bb25f5056ef-1782170312030-target
+      source: '1782169982036'
+      sourceHandle: 4e2c33ab-1ccf-455b-af68-5bb25f5056ef
+      target: '1782170312030'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: agent
+        targetType: code
+      id: 1782170184175-source-1782170622453-target
+      source: '1782170184175'
+      sourceHandle: source
+      target: '1782170622453'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: agent
+        targetType: code
+      id: 1782170280774-source-1782170622453-target
+      source: '1782170280774'
+      sourceHandle: source
+      target: '1782170622453'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: agent
+        targetType: code
+      id: 1782170297850-source-1782170622453-target
+      source: '1782170297850'
+      sourceHandle: source
+      target: '1782170622453'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: agent
+        targetType: code
+      id: 1782170312030-source-1782170622453-target
+      source: '1782170312030'
+      sourceHandle: source
+      target: '1782170622453'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        sourceType: answer
+        targetType: code
+      id: 1782170199121-source-1782170622453-target
+      source: '1782170199121'
+      sourceHandle: source
+      target: '1782170622453'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: iteration
+        targetType: code
+      id: 1782169880290-source-1782242098632-target
+      source: '1782169880290'
+      sourceHandle: source
+      target: '1782242098632'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: assigner
+      id: 1782242098632-source-1782243432946-target
+      source: '1782242098632'
+      sourceHandle: source
+      target: '1782243432946'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1782243432946-source-1782243495534-target
+      source: '1782243432946'
+      sourceHandle: source
+      target: '1782243495534'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1782243495534-source-1782243558677-target
+      source: '1782243495534'
+      sourceHandle: source
+      target: '1782243558677'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1782243558677-source-1782243623521-target
+      source: '1782243558677'
+      sourceHandle: source
+      target: '1782243623521'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: code
+      id: 1782243623521-source-1782243688518-target
+      source: '1782243623521'
+      sourceHandle: source
+      target: '1782243688518'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: code
+      id: 1782243688518-source-1782243754583-target
+      source: '1782243688518'
+      sourceHandle: source
+      target: '1782243754583'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: answer
+      id: 1782243754583-source-1782243844134-target
+      source: '1782243754583'
+      sourceHandle: source
+      target: '1782243844134'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: answer
+        targetType: assigner
+      id: 1782243844134-source-1782243860083-target
+      source: '1782243844134'
+      sourceHandle: source
+      target: '1782243860083'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables: []
+      height: 73
+      id: '1782159569238'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 83429b98-197f-46db-b0c2-19db1e937617
+          role: system
+          text: "You are a routing classifier for an insurance claims assistant.\n\
+            \nGoal:\nClassify the current user message into:\n- is_followup (boolean)\n\
+            - reuse_last_intents (boolean)\n- needs_ids (boolean)\n\nDefinitions:\n\
+            1) is_followup = true\nSet true when the user refers to the previous claims\
+            \ result, including:\n- clarification: \"what does that mean\", \"explain\
+            \ this\", \"why\", \"how to interpret\"\n- drill-down on returned data:\
+            \ \"tell me more about the exclusion\", \"what is this rule\"\n- short\
+            \ context-dependent questions: \"and the policy start date?\", \"what\
+            \ about the deductible?\"\n\nSet false when:\n- user starts a new unrelated\
+            \ request\n- user gives a different/new claim ID or policy ID\n- greeting/chitchat\
+            \ only\n\n2) reuse_last_intents\nIMPORTANT:\n- clarification / explanation\
+            \ / interpretation follow-up: reuse_last_intents = false\n- refresh /\
+            \ rerun / latest / check again / re-fetch: reuse_last_intents = true\n\
+            - if is_followup = false: reuse_last_intents = false\n\n3) needs_ids\n\
+            Set true only if a Claim ID or Policy ID is required and none is available\
+            \ in context.\nOtherwise false.\n\nSpecial case:\n- If there is no prior\
+            \ assistant message: is_followup = false, reuse_last_intents = false,\
+            \ needs_ids = false\n\nOutput contract:\nReturn JSON only with boolean\
+            \ values:\n{\n  \"is_followup\": true|false,\n  \"reuse_last_intents\"\
+            : true|false,\n  \"needs_ids\": true|false\n}\nNo extra keys. No prose."
+        - id: 40db2535-beb2-4684-a830-342c83590b1b
+          role: user
+          text: 'Latest user message:
+
+            {{#sys.query#}}
+
+
+            Conversation context:
+
+            - Last combined claims result: {{#conversation.last_combined_sections#}}
+
+            - Stored Claim ID: {{#conversation.claim_id#}}
+
+            - Stored Policy ID: {{#conversation.policy_id#}}
+
+            - System awaiting Claim ID: {{#conversation.awaiting_claim_id#}}
+
+            - System awaiting Policy ID: {{#conversation.awaiting_policy_id#}}
+
+
+            Special rule:
+
+            - If awaiting_claim_id = true and user message looks like a Claim ID (e.g.
+            CLM-0003, clm-005): is_followup = false, reuse_last_intents = false, needs_ids
+            = false
+
+            - If awaiting_policy_id = true and user message looks like a Policy ID
+            (e.g. POL-HE-0002, pol-li-001): is_followup = false, reuse_last_intents
+            = false, needs_ids = false
+
+
+            Return routing classification using the required structured schema only.'
+        selected: false
+        structured_output:
+          schema:
+            additionalProperties: false
+            properties:
+              is_followup:
+                type: boolean
+              needs_ids:
+                type: boolean
+              reuse_last_intents:
+                type: boolean
+            required:
+            - is_followup
+            - reuse_last_intents
+            - needs_ids
+            type: object
+        structured_output_enabled: true
+        title: followup_router
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: eb6b61e2-0194-4830-bfe6-5914f7f0bf28
+            value: true
+            varType: boolean
+            variable_selector:
+            - llm
+            - structured_output
+            - is_followup
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if/else_followup
+        type: if-else
+      height: 148
+      id: '1782160405124'
+      position:
+        x: 682
+        y: 282
+      positionAbsolute:
+        x: 682
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - last_intent_list
+          variable_selector:
+          - conversation
+          - pending_intent_list
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - last_primary_intent
+          variable_selector:
+          - conversation
+          - pending_primary_intent
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - effective_query
+        selected: false
+        title: va_prepare_followup_context_reuse
+        type: assigner
+        version: '2'
+      height: 136
+      id: '1782160583589'
+      position:
+        x: 1093
+        y: 175
+      positionAbsolute:
+        x: 1093
+        y: 175
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: Could you clarify your request? If it concerns a specific claim or
+          policy, please include the Claim ID (e.g. CLM-0003) or Policy ID (e.g. POL-HE-0002).
+        selected: false
+        title: unknown_followup
+        type: answer
+        variables: []
+      height: 164
+      id: '1782160654780'
+      position:
+        x: 2244.0388367563337
+        y: 371.34172092441725
+      positionAbsolute:
+        x: 2244.0388367563337
+        y: 371.34172092441725
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: empty
+            id: db6e91e8-21aa-4390-9bb3-1fe4d253cdd0
+            value: ''
+            varType: string
+            variable_selector:
+            - conversation
+            - claim_id
+          - comparison_operator: empty
+            id: ac8dda6a-4874-4280-aa9c-9ff5b3737243
+            value: ''
+            varType: string
+            variable_selector:
+            - conversation
+            - policy_id
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if_followup_has_no_ids
+        type: if-else
+      height: 150
+      id: '1782162043099'
+      position:
+        x: 1853
+        y: -115
+      positionAbsolute:
+        x: 1853
+        y: -115
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 7692dc82-9125-440c-b9a4-f62347393cf0
+          role: system
+          text: "You are a first-stage query router for an insurance claims operations\
+            \ assistant.\n\nClassify the user query into exactly one:\n1) claims_operations\n\
+            2) general_faq\n3) unknown\n\nDefinitions:\n- claims_operations: the request\
+            \ requires calling a tool or service API, even if no\n  Claim ID or Policy\
+            \ ID is provided yet. The downstream flow handles whether an ID\n  is\
+            \ actually required.\n- general_faq: purely informational or explanatory,\
+            \ answerable without any tool or API call.\n- unknown: unclear, off-topic,\
+            \ or insufficiently meaningful to action.\n\nRouting rules:\n\n1) Return\
+            \ \"claims_operations\" if the user asks for any of the following:\n \
+            \  - Claim details, claim status, claim history\n   - Policy details,\
+            \ policy coverage, policy status\n   - Combined claim and policy comparison\
+            \ or cross-check\n   - Claim eligibility assessment, rule checking, approval\
+            \ or denial verdict\n   - Any claim or policy lookup by ID\n   - Retrieving\
+            \ or submitting any claims-related record or document\n\n   Note: route\
+            \ here even if no Claim ID or Policy ID is provided — the downstream\n\
+            \   flow handles ID collection.\n\n2) Return \"general_faq\" if the user\
+            \ asks for:\n   - Definitions or terminology explanations\n   - Process\
+            \ or concept explanations\n   - How-to guidance or eligibility concepts\n\
+            \   - Documentation or submission guidance\n   - General insurance product\
+            \ knowledge\n   - Any question answerable without calling a tool or API\n\
+            \n3) Return \"unknown\" only if:\n   - Message is ambiguous, gibberish,\
+            \ or completely off-topic\n   - Insufficient information to determine\
+            \ any meaningful intent\n\nImportant:\n- If a query could go either way,\
+            \ always prefer \"claims_operations\".\n- Never classify a claims or insurance\
+            \ question as \"unknown\".\n- Output must be structured output only, no\
+            \ prose.\n\nExamples:\n- \"Show claim CLM-0003\" -> claims_operations\n\
+            - \"What is the status of my claim?\" -> claims_operations\n- \"Assess\
+            \ claim CLM-0005 against policy POL-HE-0002\" -> claims_operations\n-\
+            \ \"Show policy details for POL-LI-0001\" -> claims_operations\n- \"Is\
+            \ my claim eligible for approval?\" -> claims_operations\n- \"What does\
+            \ 'under review' mean?\" -> general_faq\n- \"How does a claim assessment\
+            \ work?\" -> general_faq\n- \"How is a critical illness claim evaluated?\"\
+            \ -> general_faq\n- \"What documents do I need to submit a disability\
+            \ claim?\" -> general_faq\n- \"What is a waiting period?\" -> general_faq\n\
+            - \"What is the difference between life and health insurance?\" -> general_faq\n\
+            - \"asdf ???\" -> unknown\n- \"tell me something cool\" -> unknown"
+        - id: e32245c6-c558-4785-b33c-a166e4f4ddf1
+          role: user
+          text: '{{#sys.query#}}
+
+
+            Classify it using the required structured schema.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              query_type:
+                enum:
+                - claims_operations
+                - general_faq
+                - unknown
+                type: string
+            required:
+            - query_type
+            type: object
+        structured_output_enabled: true
+        title: query_type_router
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782163006811'
+      position:
+        x: 1027.87906964249
+        y: 495.6230173536587
+      positionAbsolute:
+        x: 1027.87906964249
+        y: 495.6230173536587
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: contains
+            id: e99c18cb-6e3f-45e2-b8af-eed60477a9fa
+            value: claims
+            varType: string
+            variable_selector:
+            - conversation
+            - last_answer_type
+          - comparison_operator: contains
+            id: b81f7752-3eef-4068-b35f-e07b2ba61c57
+            value: policy
+            varType: string
+            variable_selector:
+            - conversation
+            - last_answer_type
+          id: 'true'
+          logical_operator: or
+        - case_id: 8b69a327-0147-4ce8-9c4b-dd248f4884af
+          conditions:
+          - comparison_operator: contains
+            id: 49c58f38-3b17-4ae4-8b90-1b8b26b481e0
+            value: faq
+            varType: string
+            variable_selector:
+            - conversation
+            - last_answer_type
+          logical_operator: and
+        selected: false
+        title: IF/ELSE 3
+        type: if-else
+      height: 270
+      id: '1782162094955'
+      position:
+        x: 1442
+        y: 129
+      positionAbsolute:
+        x: 1442
+        y: 129
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 37a99af1-aa3b-4c26-a43d-96d6d9bba098
+          role: system
+          text: 'You are a claims FAQ follow-up assistant for insurance operations.
+
+
+            Previous FAQ answer/context:
+
+            {{#conversation.last_faq_answer#}}
+
+
+            Rules:
+
+            1) Answer the user''s follow-up using the FAQ context above first.
+
+            2) Do NOT ask for Claim ID or Policy ID.
+
+            3) Do NOT call or imply data retrieval.
+
+            4) If context is insufficient, provide a concise general answer.
+
+            5) If still ambiguous, ask one short clarifying question.
+
+            6) Keep response concise, clear, and professional.'
+        - id: ad4b1b10-3777-4ae1-adb1-171ca3e9397b
+          role: user
+          text: 'User follow-up question:
+
+            {{#sys.query#}}
+
+
+            Provide the best FAQ follow-up response based on the previous FAQ context.'
+        selected: false
+        title: faq_followup_explainer
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782162299299'
+      position:
+        x: 1860.1948736999639
+        y: 181.80851906719317
+      positionAbsolute:
+        x: 1860.1948736999639
+        y: 181.80851906719317
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: c4d7bc8a-f3d5-465a-a5a9-ca9b1e2d1181
+            value: true
+            varType: boolean
+            variable_selector:
+            - llm
+            - structured_output
+            - reuse_last_intents
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if_followup_reuse_last_intents
+        type: if-else
+      height: 148
+      id: '1782162400702'
+      position:
+        x: 2478.1530336825376
+        y: -142.98445084490743
+      positionAbsolute:
+        x: 2478.1530336825376
+        y: -142.98445084490743
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: b41f077d-a427-4f1e-9073-f66a8fb38b68
+          role: system
+          text: 'You answer follow-up questions using only prior claims and policy
+            results.
+
+
+            Context from previous answer:
+
+            {{#conversation.last_combined_sections#}}
+
+
+            Claim ID: {{#conversation.claim_id#}}
+
+            Policy ID: {{#conversation.policy_id#}}
+
+
+            Rules:
+
+            - Prefer the context above.
+
+            - If user asks meaning/interpretation of a value (claim status codes,
+            rule IDs, dates), provide a brief explanation.
+
+            - If exact meaning is system-specific and not in context, say so and suggest
+            re-fetching details.
+
+            - Do not ask for Claim ID or Policy ID again.'
+        - id: 98e32688-25bf-4f3a-af28-ff1e690e3918
+          role: user
+          text: '{{#sys.query#}}'
+        selected: false
+        title: followup_explainer
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782162456703'
+      position:
+        x: 2916.3957776157035
+        y: 9.07218300907229
+      positionAbsolute:
+        x: 2916.3957776157035
+        y: 9.07218300907229
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#1782162456703.text#}}'
+        selected: false
+        title: followup_explainer_answer
+        type: answer
+        variables: []
+      height: 103
+      id: '1782162498221'
+      position:
+        x: 3308.41330485726
+        y: 23.669619859054364
+      positionAbsolute:
+        x: 3308.41330485726
+        y: 23.669619859054364
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: claims_operations
+          variable_selector:
+          - conversation
+          - last_answer_type
+        selected: false
+        title: va_set_followup_answer_type
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1782162518112'
+      position:
+        x: 3742.333723404699
+        y: 136.8914951671311
+      positionAbsolute:
+        x: 3742.333723404699
+        y: 136.8914951671311
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#1782162299299.text#}}'
+        selected: false
+        title: faq_followup_answer
+        type: answer
+        variables: []
+      height: 103
+      id: '1782162710556'
+      position:
+        x: 2282.2202539391383
+        y: 181.80851906719317
+      positionAbsolute:
+        x: 2282.2202539391383
+        y: 181.80851906719317
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: general_faq
+          variable_selector:
+          - conversation
+          - last_answer_type
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782162299299'
+          - text
+          variable_selector:
+          - conversation
+          - last_faq_answer
+        selected: false
+        title: va_set_faq_type_followup
+        type: assigner
+        version: '2'
+      height: 110
+      id: '1782162734175'
+      position:
+        x: 2584.2202539391383
+        y: 181.80851906719317
+      positionAbsolute:
+        x: 2584.2202539391383
+        y: 181.80851906719317
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 2f445364-77e3-4d55-afdb-17afe9325d4c
+            value: claims_operations
+            varType: object
+            variable_selector:
+            - '1782163006811'
+            - structured_output
+            - query_type
+          id: 'true'
+          logical_operator: and
+        - case_id: 27b84adb-3cc3-4ac0-8bdf-40eb352587b2
+          conditions:
+          - comparison_operator: is
+            id: b5fdd830-2678-4632-92ab-ba3d0a4dc174
+            value: general_faq
+            varType: object
+            variable_selector:
+            - '1782163006811'
+            - structured_output
+            - query_type
+          id: 27b84adb-3cc3-4ac0-8bdf-40eb352587b2
+          logical_operator: and
+        selected: false
+        title: if/else_general_claims
+        type: if-else
+      height: 220
+      id: '1782163158917'
+      position:
+        x: 1309.87906964249
+        y: 675.6230173536587
+      positionAbsolute:
+        x: 1309.87906964249
+        y: 675.6230173536587
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: 'I''m not sure what you''re looking for. If you have a claims or policy
+          question, please include your Claim ID (e.g. CLM-0003) or Policy ID (e.g.
+          POL-HE-0002). Or ask a general claims question and I''ll do my best to help! '
+        selected: false
+        title: unknown_answer
+        type: answer
+        variables: []
+      height: 180
+      id: '1782163470788'
+      position:
+        x: 1691.4277026380328
+        y: 1377.789109659505
+      positionAbsolute:
+        x: 1691.4277026380328
+        y: 1377.789109659505
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: cbb41694-0ec8-42c3-8dda-0043de081a6c
+          role: system
+          text: "You are a claims FAQ assistant for insurance operations.\n\nGoal:\n\
+            - Answer general, non-claim-specific questions clearly and concisely.\n\
+            - Do not require or ask for Claim ID or Policy ID unless the question\
+            \ is explicitly policy-specific.\n\nScope:\n- In scope: definitions, process\
+            \ explanations, eligibility concepts, document requirements, timelines,\
+            \ claim types, insurance product knowledge.\n- Out of scope: customer-specific\
+            \ data retrieval (actual claim status, policy values, assessment outcomes\
+            \ for a specific claim).\n\nBehavior rules:\n1) If the question is general\
+            \ FAQ: provide a direct answer in plain language.\n2) If the question\
+            \ actually needs claim/policy lookup:\n   - Respond with: \"I can help\
+            \ with that. Please share your Claim ID (e.g. CLM-0003) or Policy ID (e.g.\
+            \ POL-HE-0002) so I can retrieve the details.\"\n3) Never invent claim\
+            \ data, policy values, or assessment outcomes.\n4) Keep tone professional\
+            \ and helpful.\n5) Keep answer concise (target under 180 words).\n6) End\
+            \ with up to 3 short follow-up suggestions only when useful.\n\nOutput\
+            \ format: plain text only (no JSON, no markdown tables)."
+        - id: 02cd56b5-e794-4b20-bf58-ee77c1bf8599
+          role: user
+          text: 'User question:
+
+            {{#sys.query#}}
+
+
+            Instructions:
+
+            - If this is a general FAQ, answer directly.
+
+            - If claim/policy-specific lookup is required, ask for the Claim ID (CLM-xxx)
+            or Policy ID (POL-XX-xxx).
+
+            - Keep the response concise and clear.'
+        selected: false
+        title: faq_answer_llm
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782163562656'
+      position:
+        x: 1691.4277026380328
+        y: 1070.958114497596
+      positionAbsolute:
+        x: 1691.4277026380328
+        y: 1070.958114497596
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#1782163562656.text#}}'
+        selected: false
+        title: faq_answer
+        type: answer
+        variables: []
+      height: 103
+      id: '1782163602008'
+      position:
+        x: 2045.0416167159956
+        y: 1070.958114497596
+      positionAbsolute:
+        x: 2045.0416167159956
+        y: 1070.958114497596
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: general_faq
+          variable_selector:
+          - conversation
+          - last_answer_type
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782163562656'
+          - text
+          variable_selector:
+          - conversation
+          - last_faq_answer
+        selected: false
+        title: va_set_faq_type
+        type: assigner
+        version: '2'
+      height: 110
+      id: '1782163620634'
+      position:
+        x: 2392.175864156602
+        y: 1190.8969840602767
+      positionAbsolute:
+        x: 2392.175864156602
+        y: 1190.8969840602767
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef main(query: str) -> dict:\n    q = (query or \"\"\
+          ).strip()\n    q_upper = q.upper()\n\n    # Claim ID: CLM- followed by 3-6\
+          \ digits (e.g. CLM-003, CLM-0003, CLM-000012)\n    claim_match = re.search(\n\
+          \        r'\\b(CLM-\\d{3,6})\\b', q_upper\n    )\n    claim_found = bool(claim_match)\n\
+          \    claim_id = claim_match.group(1) if claim_match else \"\"\n\n    # Policy\
+          \ ID: POL-(LI|HE|CI|DI)- followed by 3-6 digits (e.g. POL-HE-0002)\n   \
+          \ pol_match = re.search(\n        r'\\b(POL-(LI|HE|CI|DI)-\\d{3,6})\\b',\
+          \ q_upper\n    )\n    policy_found = bool(pol_match)\n    policy_id = pol_match.group(1)\
+          \ if pol_match else \"\"\n\n    # Infer domain from policy ID prefix\n \
+          \   intended_domain = \"\"\n    if pol_match:\n        prefix = pol_match.group(2)\n\
+          \        intended_domain = {\n            \"LI\": \"life\",\n          \
+          \  \"HE\": \"health\",\n            \"CI\": \"critical_illness\",\n    \
+          \        \"DI\": \"disability\"\n        }.get(prefix, \"\")\n\n    return\
+          \ {\n        \"claim_found\": claim_found,\n        \"claim_id\": claim_id,\n\
+          \        \"policy_found\": policy_found,\n        \"policy_id\": policy_id,\n\
+          \        \"intended_domain\": intended_domain\n    }"
+        code_language: python3
+        outputs:
+          claim_found:
+            children: null
+            type: boolean
+          claim_id:
+            children: null
+            type: string
+          intended_domain:
+            children: null
+            type: string
+          policy_found:
+            children: null
+            type: boolean
+          policy_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_claim_policy_ids
+        type: code
+        variables:
+        - value_selector:
+          - sys
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1782164052400'
+      position:
+        x: 1674.74309377058
+        y: 689.4175285204782
+      positionAbsolute:
+        x: 1674.74309377058
+        y: 689.4175285204782
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: c182b374-ce00-4e2a-afef-f7040204aa8b
+            value: true
+            varType: boolean
+            variable_selector:
+            - conversation
+            - awaiting_claim_id
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if_waiting_for_claim_id
+        type: if-else
+      height: 124
+      id: '1782164280776'
+      position:
+        x: 2018.8949388213446
+        y: 660.9030451037842
+      positionAbsolute:
+        x: 2018.8949388213446
+        y: 660.9030451037842
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 6390b628-bb38-412b-9508-77ed19e7820d
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782164052400'
+            - claim_found
+          - comparison_operator: not empty
+            id: 800152fb-2c54-49f8-adf5-c9815479cad3
+            value: ''
+            varType: string
+            variable_selector:
+            - '1782164052400'
+            - claim_id
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if_claim_found_on_continuation
+        type: if-else
+      height: 189
+      id: '1782164515783'
+      position:
+        x: 2661.8289796731196
+        y: 500.973985940588
+      positionAbsolute:
+        x: 2661.8289796731196
+        y: 500.973985940588
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: bf5e2c59-7152-473a-a9bd-3f7eb0e00049
+            value: true
+            varType: boolean
+            variable_selector:
+            - conversation
+            - awaiting_policy_id
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: if_waiting_for_policy_id
+        type: if-else
+      height: 124
+      id: '1782164576135'
+      position:
+        x: 2478.1530336825376
+        y: 931.2363852627809
+      positionAbsolute:
+        x: 2478.1530336825376
+        y: 931.2363852627809
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: To continue, please provide your Claim ID (e.g. CLM-0003).
+        selected: false
+        title: answer_need_claim_again
+        type: answer
+        variables: []
+      height: 116
+      id: '1782164631575'
+      position:
+        x: 3072.107125806095
+        y: 670.8873844877195
+      positionAbsolute:
+        x: 3072.107125806095
+        y: 670.8873844877195
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: true
+          variable_selector:
+          - conversation
+          - awaiting_claim_id
+        selected: false
+        title: va_need_claim_again
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1782164654120'
+      position:
+        x: 3467.392913243736
+        y: 670.8873844877195
+      positionAbsolute:
+        x: 3467.392913243736
+        y: 670.8873844877195
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - claim_id
+          variable_selector:
+          - conversation
+          - claim_id
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_claim_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_query
+          variable_selector:
+          - conversation
+          - effective_query
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - intended_domain
+          variable_selector:
+          - conversation
+          - intended_domain
+        selected: false
+        title: va_set_claim_continuation
+        type: assigner
+        version: '2'
+      height: 162
+      id: '1782164731529'
+      position:
+        x: 3710.1152791742456
+        y: 441.0835113074512
+      positionAbsolute:
+        x: 3710.1152791742456
+        y: 441.0835113074512
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: b85aa1e5-8891-4a97-ba71-c04341cee594
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782164052400'
+            - policy_found
+          - comparison_operator: not empty
+            id: 94d27243-8808-4a02-9e88-cd50505b84a4
+            value: ''
+            varType: string
+            variable_selector:
+            - '1782164052400'
+            - policy_id
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: IF/ELSE 9
+        type: if-else
+      height: 189
+      id: '1782164916534'
+      position:
+        x: 2841.8750596018353
+        y: 836.2847801923252
+      positionAbsolute:
+        x: 2841.8750596018353
+        y: 836.2847801923252
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: To continue, please provide your Policy ID (e.g. POL-HE-0002).
+        selected: false
+        title: answer_need_policy_again
+        type: answer
+        variables: []
+      height: 116
+      id: '1782164950838'
+      position:
+        x: 3175.5255946253205
+        y: 1007.8639963722718
+      positionAbsolute:
+        x: 3175.5255946253205
+        y: 1007.8639963722718
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: true
+          variable_selector:
+          - conversation
+          - awaiting_policy_id
+        selected: false
+        title: va_need_policy_again
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1782164971603'
+      position:
+        x: 3477.5255946253205
+        y: 1007.8639963722718
+      positionAbsolute:
+        x: 3477.5255946253205
+        y: 1007.8639963722718
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - policy_id
+          variable_selector:
+          - conversation
+          - policy_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - intended_domain
+          variable_selector:
+          - conversation
+          - intended_domain
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_policy_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_query
+          variable_selector:
+          - conversation
+          - effective_query
+        selected: false
+        title: va_set_policy_continuation
+        type: assigner
+        version: '2'
+      height: 162
+      id: '1782165012674'
+      position:
+        x: 4083.174102526709
+        y: 786.616247366224
+      positionAbsolute:
+        x: 4083.174102526709
+        y: 786.616247366224
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: ed8f3905-5f7e-4bfd-b158-aef785c312c1
+          role: system
+          text: 'You are a claims operations intent classifier.
+
+
+            Analyze the user''s query and identify which operation(s) need to be performed.
+
+
+            Available intents:
+
+            1. **claim_details**: retrieve details about a specific claim — status,
+            amount, incident date, claimant info, notes. Requires a Claim ID (CLM-xxx).
+
+
+            2. **policy_details**: retrieve details about a specific policy — coverage,
+            status, premium, product type, customer info. Requires a Policy ID (POL-XX-xxx).
+
+
+            3. **claim_and_policy_details**: retrieve and cross-reference both a claim
+            and its linked policy — compare claim against policy coverage, check consistency.
+            Requires Claim ID and/or Policy ID.
+
+
+            4. **assess_claim**: perform a full eligibility assessment of a claim
+            against its policy and mandatory rules — determine APPROVE / REJECT /
+            REVIEW_NEEDED / PENDING verdict. Requires a Claim ID (CLM-xxx).
+
+
+            Rules:
+
+            - If query covers ONE topic → route_type = "single", set primary_intent,
+            intent_list = [that one intent]
+
+            - If query covers MULTIPLE topics → route_type = "multi", primary_intent
+            = first/dominant, intent_list = all identified
+
+            - If query is off-topic or unclear → route_type = "unknown", primary_intent
+            = "unknown", intent_list = []
+
+
+            For each item in intent_list, include:
+
+            - intent_name: one of [claim_details, policy_details, claim_and_policy_details,
+            assess_claim]
+
+            - api_label: human-readable label e.g. "claim details", "policy details",
+            "claim & policy details", "claim assessment"
+
+
+            Examples:
+
+            - "Show me claim CLM-0003" → single, claim_details
+
+            - "What are the details of policy POL-HE-0002?" → single, policy_details
+
+            - "Cross-check claim CLM-0003 against its policy" → single, claim_and_policy_details
+
+            - "Assess claim CLM-0005" → single, assess_claim
+
+            - "Show claim details and assess eligibility for CLM-0003" → multi, [claim_details,
+            assess_claim]
+
+            - "Show both the claim and policy for CLM-0003 and POL-LI-0001" → single,
+            claim_and_policy_details'
+        - id: 1135c084-8e95-4c0b-8e78-e5a91cf70783
+          role: user
+          text: 'User query: {{#sys.query#}}
+
+
+            Known context:
+
+            - Claim ID: {{#conversation.claim_id#}}
+
+            - Policy ID: {{#conversation.policy_id#}}
+
+            - Domain: {{#conversation.intended_domain#}}
+
+
+            Classify the intents in this query.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              intent_list:
+                items:
+                  properties:
+                    api_label:
+                      type: string
+                    intent_name:
+                      enum:
+                      - claim_details
+                      - policy_details
+                      - claim_and_policy_details
+                      - assess_claim
+                      type: string
+                  required:
+                  - intent_name
+                  - api_label
+                  type: object
+                type: array
+              primary_intent:
+                enum:
+                - claim_details
+                - policy_details
+                - claim_and_policy_details
+                - assess_claim
+                - unknown
+                type: string
+              route_type:
+                enum:
+                - single
+                - multi
+                - unknown
+                type: string
+            required:
+            - route_type
+            - primary_intent
+            - intent_list
+            type: object
+        structured_output_enabled: true
+        title: intent_identifier
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782165106950'
+      position:
+        x: 2868.5281417268757
+        y: 1167.5654734268564
+      positionAbsolute:
+        x: 2868.5281417268757
+        y: 1167.5654734268564
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - pending_query
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782165106950'
+          - structured_output
+          variable_selector:
+          - conversation
+          - pending_intents_json
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782165106950'
+          - structured_output
+          - intent_list
+          variable_selector:
+          - conversation
+          - pending_intent_list
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782165106950'
+          - structured_output
+          - primary_intent
+          variable_selector:
+          - conversation
+          - pending_primary_intent
+        selected: false
+        title: va_save_pending_intent_context
+        type: assigner
+        version: '2'
+      height: 162
+      id: '1782165219921'
+      position:
+        x: 3170.5281417268757
+        y: 1167.5654734268564
+      positionAbsolute:
+        x: 3170.5281417268757
+        y: 1167.5654734268564
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(pending_intent_list=None):\n    REQUIRES_CLAIM_ID = {\n  \
+          \      \"claim_details\", \"claim_and_policy_details\", \"assess_claim\"\
+          \n    }\n    REQUIRES_POLICY_ID_ONLY = {\n        \"policy_details\"\n \
+          \   }\n\n    intents = pending_intent_list if isinstance(pending_intent_list,\
+          \ list) else []\n    names = []\n    for x in intents:\n        if isinstance(x,\
+          \ dict):\n            n = str(x.get(\"intent_name\", \"\")).strip()\n  \
+          \          if n:\n                names.append(n)\n\n    if not names:\n\
+          \        return {\"requires_claim_id\": True, \"requires_policy_id_only\"\
+          : False}\n\n    requires_claim_id = any(n in REQUIRES_CLAIM_ID for n in\
+          \ names)\n    requires_policy_id_only = (\n        not requires_claim_id\
+          \ and\n        any(n in REQUIRES_POLICY_ID_ONLY for n in names)\n    )\n\
+          \n    return {\n        \"requires_claim_id\": requires_claim_id,\n    \
+          \    \"requires_policy_id_only\": requires_policy_id_only\n    }"
+        code_language: python3
+        outputs:
+          requires_claim_id:
+            children: null
+            type: boolean
+          requires_policy_id_only:
+            children: null
+            type: boolean
+        selected: false
+        title: compute_requires_ids
+        type: code
+        variables:
+        - value_selector:
+          - conversation
+          - pending_intent_list
+          value_type: array[object]
+          variable: pending_intent_list
+      height: 52
+      id: '1782165574853'
+      position:
+        x: 3472.5281417268757
+        y: 1167.5654734268564
+      positionAbsolute:
+        x: 3472.5281417268757
+        y: 1167.5654734268564
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 81ef4329-4cce-4a9f-a491-1d6b45e912c7
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782165574853'
+            - requires_claim_id
+          id: 'true'
+          logical_operator: and
+        - case_id: 324fdf77-b9d5-4241-bb2b-b6ee2ea6a3cf
+          conditions:
+          - comparison_operator: is
+            id: 93630094-8a6e-4e5a-b17f-02b558f6df45
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782165574853'
+            - requires_policy_id_only
+          id: 324fdf77-b9d5-4241-bb2b-b6ee2ea6a3cf
+          logical_operator: and
+        selected: false
+        title: if_requires_ids
+        type: if-else
+      height: 220
+      id: '1782165656117'
+      position:
+        x: 3774.5281417268757
+        y: 1167.5654734268564
+      positionAbsolute:
+        x: 3774.5281417268757
+        y: 1167.5654734268564
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(pending_intent_list=None, pending_intents_json=None):\n  \
+          \  import json\n\n    def to_obj(x):\n        if isinstance(x, dict):\n\
+          \            return x\n        if isinstance(x, str):\n            s = x.strip()\n\
+          \            if not s:\n                return {}\n            try:\n  \
+          \              v = json.loads(s)\n                return v if isinstance(v,\
+          \ dict) else {}\n            except Exception:\n                return {}\n\
+          \        return {}\n\n    def to_list(x):\n        if isinstance(x, list):\n\
+          \            return x\n        if isinstance(x, str):\n            s = x.strip()\n\
+          \            if not s:\n                return []\n            try:\n  \
+          \              v = json.loads(s)\n                return v if isinstance(v,\
+          \ list) else []\n            except Exception:\n                return []\n\
+          \        if isinstance(x, dict):\n            v = x.get(\"intent_list\"\
+          , [])\n            return v if isinstance(v, list) else []\n        return\
+          \ []\n\n    intents = to_list(pending_intent_list)\n    if not intents:\n\
+          \        obj = to_obj(pending_intents_json)\n        intents = to_list(obj)\n\
+          \n    clean = []\n    for item in intents:\n        if isinstance(item,\
+          \ dict):\n            intent_name = str(item.get(\"intent_name\", \"\")).strip()\n\
+          \            api_label = str(item.get(\"api_label\", \"\")).strip()\n  \
+          \          if intent_name:\n                clean.append({\n           \
+          \         \"intent_name\": intent_name,\n                    \"api_label\"\
+          : api_label\n                })\n\n    return {\"intent_list\": clean}"
+        code_language: python3
+        outputs:
+          intent_list:
+            children: null
+            type: array[object]
+        selected: false
+        title: prepare_intents_for_iteration
+        type: code
+        variables:
+        - value_selector:
+          - conversation
+          - pending_intents_json
+          value_type: object
+          variable: pending_intents_json
+        - value_selector:
+          - conversation
+          - pending_intent_list
+          value_type: array[object]
+          variable: pending_intent_list
+      height: 52
+      id: '1782167905101'
+      position:
+        x: 5792.5339804666355
+        y: 425.45488289504044
+      positionAbsolute:
+        x: 5792.5339804666355
+        y: 425.45488289504044
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 88d6ee1d-53e2-4c0f-a053-11dadce885d1
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782164052400'
+            - policy_found
+          - comparison_operator: not empty
+            id: 70f00bc7-4234-4d47-8da9-6b8c252ee44e
+            value: ''
+            varType: string
+            variable_selector:
+            - '1782164052400'
+            - policy_id
+          id: 'true'
+          logical_operator: and
+        - case_id: a2a6eb89-39c5-4ad4-9406-e10d013f763f
+          conditions:
+          - comparison_operator: not empty
+            id: 0ad7279a-9ba9-46e7-9fa3-8ffdcf00b4fc
+            value: ''
+            varType: string
+            variable_selector:
+            - conversation
+            - policy_id
+          logical_operator: and
+        selected: false
+        title: IF/ELSE 11
+        type: if-else
+      height: 237
+      id: '1782168082000'
+      position:
+        x: 4237.598975623043
+        y: 1471.8058442706256
+      positionAbsolute:
+        x: 4237.598975623043
+        y: 1471.8058442706256
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: dece8216-3485-49ad-80ac-d8e5666359d7
+            value: true
+            varType: boolean
+            variable_selector:
+            - '1782164052400'
+            - claim_found
+          - comparison_operator: not empty
+            id: 7254acce-56df-404f-ad81-f59ffb15f1e3
+            value: ''
+            varType: string
+            variable_selector:
+            - '1782164052400'
+            - claim_id
+          id: 'true'
+          logical_operator: and
+        - case_id: c729d358-9799-4fb8-8e0b-258170aec653
+          conditions:
+          - comparison_operator: not empty
+            id: 9eb5748f-8611-4862-82ca-3129c53c075f
+            value: ''
+            varType: string
+            variable_selector:
+            - conversation
+            - claim_id
+          id: c729d358-9799-4fb8-8e0b-258170aec653
+          logical_operator: and
+        selected: false
+        title: if_claim_id_available
+        type: if-else
+      height: 237
+      id: '1782168102268'
+      position:
+        x: 4281.120244662843
+        y: 995.0890203458689
+      positionAbsolute:
+        x: 4281.120244662843
+        y: 995.0890203458689
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - claim_id
+          variable_selector:
+          - conversation
+          - claim_id
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_claim_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - effective_query
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - intended_domain
+          variable_selector:
+          - conversation
+          - intended_domain
+        selected: false
+        title: va_set_claim_same_turn
+        type: assigner
+        version: '2'
+      height: 162
+      id: '1782168190904'
+      position:
+        x: 4698.690289102989
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 4698.690289102989
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: true
+          variable_selector:
+          - conversation
+          - awaiting_claim_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - pending_query
+        selected: false
+        title: va_mark_waiting_claim_id
+        type: assigner
+        version: '2'
+      height: 110
+      id: '1782168375142'
+      position:
+        x: 4853.303231053548
+        y: 1190.8969840602767
+      positionAbsolute:
+        x: 4853.303231053548
+        y: 1190.8969840602767
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: To continue, please provide your Claim ID (e.g. CLM-0003).
+        selected: false
+        title: answer_ask_claim_id
+        type: answer
+        variables: []
+      height: 116
+      id: '1782168995546'
+      position:
+        x: 5155.303231053548
+        y: 1190.8969840602767
+      positionAbsolute:
+        x: 5155.303231053548
+        y: 1190.8969840602767
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - policy_id
+          variable_selector:
+          - conversation
+          - policy_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782164052400'
+          - intended_domain
+          variable_selector:
+          - conversation
+          - intended_domain
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_policy_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - effective_query
+        selected: false
+        title: va_set_policy_same_turn
+        type: assigner
+        version: '2'
+      height: 162
+      id: '1782169293120'
+      position:
+        x: 4707.513874050289
+        y: 1451.3249363842183
+      positionAbsolute:
+        x: 4707.513874050289
+        y: 1451.3249363842183
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        isInIteration: false
+        isInLoop: false
+        items:
+        - input_type: constant
+          operation: set
+          value: true
+          variable_selector:
+          - conversation
+          - awaiting_policy_id
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - pending_query
+        selected: false
+        title: va_mark_waiting_policy_id
+        type: assigner
+        version: '2'
+      height: 110
+      id: '17821696382670'
+      position:
+        x: 4698.690289102989
+        y: 1680.3581978736001
+      positionAbsolute:
+        x: 4698.690289102989
+        y: 1680.3581978736001
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: To continue, please provide your Policy ID (e.g. POL-HE-0002, POL-LI-0001).
+        selected: false
+        title: answer_ask_policy_id
+        type: answer
+        variables: []
+      height: 132
+      id: '1782169682770'
+      position:
+        x: 5064.340825828426
+        y: 1680.3581978736001
+      positionAbsolute:
+        x: 5064.340825828426
+        y: 1680.3581978736001
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_primary_intent
+          variable_selector:
+          - conversation
+          - last_primary_intent
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_intent_list
+          variable_selector:
+          - conversation
+          - last_intent_list
+        - input_type: variable
+          operation: over-write
+          value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - pending_query
+        selected: false
+        title: va_need_policy_answer
+        type: assigner
+        version: '2'
+      height: 136
+      id: '1782169710561'
+      position:
+        x: 5431.375069873982
+        y: 1680.3581978736001
+      positionAbsolute:
+        x: 5431.375069873982
+        y: 1680.3581978736001
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_claim_id
+        - input_type: constant
+          operation: set
+          value: false
+          variable_selector:
+          - conversation
+          - awaiting_policy_id
+        selected: false
+        title: va_clear_awaiting_flags
+        type: assigner
+        version: '2'
+      height: 110
+      id: '1782169834376'
+      position:
+        x: 6179.173159705978
+        y: 420.58766647982736
+      positionAbsolute:
+        x: 6179.173159705978
+        y: 420.58766647982736
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        error_handle_mode: terminated
+        flatten_output: true
+        height: 1130
+        is_parallel: false
+        iterator_input_type: array[object]
+        iterator_selector:
+        - '1782167905101'
+        - intent_list
+        output_selector:
+        - '1782170622453'
+        - packed_result
+        output_type: array[string]
+        parallel_nums: 10
+        selected: false
+        start_node_id: 1782169880290start
+        title: Iteration
+        type: iteration
+        width: 1545
+      height: 1130
+      id: '1782169880290'
+      position:
+        x: 6761.52979320533
+        y: 509.0835113074512
+      positionAbsolute:
+        x: 6761.52979320533
+        y: 509.0835113074512
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 1545
+      zIndex: 1
+    - data:
+        desc: ''
+        isInIteration: true
+        selected: false
+        title: ''
+        type: iteration-start
+      draggable: false
+      height: 48
+      id: 1782169880290start
+      parentId: '1782169880290'
+      position:
+        x: 24
+        y: 68
+      positionAbsolute:
+        x: 6785.52979320533
+        y: 577.0835113074512
+      selectable: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom-iteration-start
+      width: 44
+      zIndex: 1002
+    - data:
+        code: "def main(current_item: str) -> dict:\n    import json\n\n    if isinstance(current_item,\
+          \ str):\n        item = json.loads(current_item)\n    else:\n        item\
+          \ = current_item or {}\n\n    intent_name = item.get(\"intent_name\", \"\
+          \").strip().lower()\n    api_label   = item.get(\"api_label\",   \"\").strip()\n\
+          \    return {\n        \"intent_name\": intent_name,\n        \"api_label\"\
+          :   api_label\n    }"
+        code_language: python3
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        outputs:
+          api_label:
+            children: null
+            type: string
+          intent_name:
+            children: null
+            type: string
+        selected: false
+        title: map_intent
+        type: code
+        variables:
+        - value_selector:
+          - '1782169880290'
+          - item
+          value_type: object
+          variable: current_item
+      height: 52
+      id: '1782169896888'
+      parentId: '1782169880290'
+      position:
+        x: 113.3570369251056
+        y: 180.75081567668678
+      positionAbsolute:
+        x: 6874.886830130436
+        y: 689.834326984138
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 205914d8-7c55-4ee0-86bb-bc86a58a8ae8
+            value: life
+            varType: string
+            variable_selector:
+            - conversation
+            - intended_domain
+          id: 'true'
+          logical_operator: and
+        - case_id: 47602752-5ab5-4f85-ab8d-07d845d11b57
+          conditions:
+          - comparison_operator: is
+            id: 22eadf58-f27d-4fce-bd13-87e94e78435d
+            value: health
+            varType: string
+            variable_selector:
+            - conversation
+            - intended_domain
+          id: 47602752-5ab5-4f85-ab8d-07d845d11b57
+          logical_operator: and
+        - case_id: a80e1cf7-a4fd-482d-a40d-929cf6f27cce
+          conditions:
+          - comparison_operator: is
+            id: 848fc134-2320-499d-8f01-b75a1c5c8e89
+            value: critical_illness
+            varType: string
+            variable_selector:
+            - conversation
+            - intended_domain
+          id: a80e1cf7-a4fd-482d-a40d-929cf6f27cce
+          logical_operator: and
+        - case_id: 4e2c33ab-1ccf-455b-af68-5bb25f5056ef
+          conditions:
+          - comparison_operator: is
+            id: 32d7f878-1f91-4afd-95f0-783614a55cc4
+            value: disability
+            varType: string
+            variable_selector:
+            - conversation
+            - intended_domain
+          id: 4e2c33ab-1ccf-455b-af68-5bb25f5056ef
+          logical_operator: and
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        selected: false
+        title: IF/ELSE 13
+        type: if-else
+      height: 292
+      id: '1782169982036'
+      parentId: '1782169880290'
+      position:
+        x: 415.3570369251056
+        y: 180.75081567668678
+      positionAbsolute:
+        x: 7176.886830130436
+        y: 689.834326984138
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        agent_parameters:
+          instruction:
+            type: constant
+            value: "You are a Life insurance specialist agent.\n\nRead `intent` from\
+              \ the query to decide which operation tool to call:\n  - \"claim_details\"\
+              \ → Life_Claim_Details\n  - \"policy_details\" → Life_Policy_Details\n\
+              \  - \"claim_and_policy_details\" → Life_Claim_and_Policy_Details\n\
+              \  - \"assess_claim\" → Life_Assess_Claim\n\nPass claim_id, policy_id,\
+              \ and query to the chosen tool.\nReturn the tool response as-is (JSON\
+              \ with 'answer' and 'suggestion_context' keys).\nDo not summarize, reword,\
+              \ or add commentary."
+          model:
+            type: constant
+            value:
+              completion_params: {}
+              mode: chat
+              model: gpt-5.2
+              model_type: llm
+              provider: langgenius/openai/openai
+              type: model-selector
+          query:
+            type: constant
+            value: 'intent: {{#1782169896888.intent_name#}}
+
+              query: {{#conversation.effective_query#}}
+
+              claim_id: {{#conversation.claim_id#}}
+
+              policy_id: {{#conversation.policy_id#}}'
+          tools:
+            type: constant
+            value:
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: cd59f6f1-94b9-44ac-847b-0dcba8cf937d
+              provider_show_name: Life_Claim_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Life_Claim_Details
+              tool_name: Life_Claim_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 96260125-9983-47c9-b26a-a759ff4adb64
+              provider_show_name: Life_Claim_and_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Life_Claim_and_Policy_Details
+              tool_name: Life_Claim_and_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: a49c5601-a14d-4321-a589-1296146c27cb
+              provider_show_name: Life_Assess_Claim
+              settings: {}
+              tool_description: ''
+              tool_label: Life_Assess_Claim
+              tool_name: Life_Assess_Claim
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: f0e00a9b-0fb4-4b27-96f5-226f34bb2bd9
+              provider_show_name: Life_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Life_Policy_Details
+              tool_name: Life_Policy_Details
+              type: workflow
+        agent_strategy_label: FunctionCalling
+        agent_strategy_name: function_calling
+        agent_strategy_provider_name: langgenius/agent/agent
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 50
+        meta:
+          minimum_dify_version: 1.7.0
+          version: 0.0.2
+        output_schema: {}
+        plugin_unique_identifier: langgenius/agent:0.0.39@ceea6a76b3a495de2df2a55bcea82e903d49b06f4d8e1463c2aa085657f27164
+        selected: false
+        title: life_agent
+        tool_node_version: '2'
+        type: agent
+      height: 188
+      id: '1782170184175'
+      parentId: '1782169880290'
+      position:
+        x: 705.5787568219166
+        y: 65
+      positionAbsolute:
+        x: 7467.108550027247
+        y: 574.0835113074512
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        answer: unknown_answer
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        selected: false
+        title: unknown_answer_iter
+        type: answer
+        variables: []
+      height: 100
+      id: '1782170199121'
+      parentId: '1782169880290'
+      position:
+        x: 688.7161027124857
+        y: 963.0627261500646
+      positionAbsolute:
+        x: 7450.245895917816
+        y: 1472.1462374575158
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        agent_parameters:
+          instruction:
+            type: constant
+            value: "You are a Health insurance specialist agent.\n\nRead `intent`\
+              \ from the query to decide which operation tool to call:\n  - \"claim_details\"\
+              \ → Health_Claim_Details\n  - \"policy_details\" → Health_Policy_Details\n\
+              \  - \"claim_and_policy_details\" → Health_Claim_and_Policy_Details\n\
+              \  - \"assess_claim\" → Health_Assess_Claim\n\nPass claim_id, policy_id,\
+              \ and query to the chosen tool.\nReturn the tool response as-is (JSON\
+              \ with 'answer' and 'suggestion_context' keys).\nDo not summarize, reword,\
+              \ or add commentary."
+          model:
+            type: constant
+            value:
+              completion_params: {}
+              mode: chat
+              model: gpt-5.2
+              model_type: llm
+              provider: langgenius/openai/openai
+              type: model-selector
+          query:
+            type: constant
+            value: 'intent: {{#1782169896888.intent_name#}}
+
+              query: {{#conversation.effective_query#}}
+
+              claim_id: {{#conversation.claim_id#}}
+
+              policy_id: {{#conversation.policy_id#}}'
+          tools:
+            type: constant
+            value:
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 7c056422-8fa1-4f00-a67e-589cc6bc1594
+              provider_show_name: Health_Claim_and_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Health_Claim_and_Policy_Details
+              tool_name: Health_Claim_and_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 982d3d26-23ec-4cc7-a64c-84eb675e67af
+              provider_show_name: Health_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Health_Policy_Details
+              tool_name: Health_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: e98b516f-245d-4b1c-b0db-cd0ffd8007cb
+              provider_show_name: Health_Claim_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Health_Claim_Details
+              tool_name: Health_Claim_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: f6632bff-5a15-4595-aa59-0fb240640a48
+              provider_show_name: Health_Assess_Claim
+              settings: {}
+              tool_description: ''
+              tool_label: Health_Assess_Claim
+              tool_name: Health_Assess_Claim
+              type: workflow
+        agent_strategy_label: FunctionCalling
+        agent_strategy_name: function_calling
+        agent_strategy_provider_name: langgenius/agent/agent
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 50
+        meta:
+          minimum_dify_version: 1.7.0
+          version: 0.0.2
+        output_schema: {}
+        plugin_unique_identifier: langgenius/agent:0.0.39@ceea6a76b3a495de2df2a55bcea82e903d49b06f4d8e1463c2aa085657f27164
+        selected: false
+        title: health_agent
+        tool_node_version: '2'
+        type: agent
+      height: 188
+      id: '1782170280774'
+      parentId: '1782169880290'
+      position:
+        x: 699.112604212316
+        y: 287.8987371136467
+      positionAbsolute:
+        x: 7460.642397417646
+        y: 796.9822484210979
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        agent_parameters:
+          instruction:
+            type: constant
+            value: "You are a Critical Illness insurance specialist agent.\n\nRead\
+              \ `intent` from the query to decide which operation tool to call:\n\
+              \  - \"claim_details\" → CI_Claim_Details\n  - \"policy_details\" →\
+              \ CI_Policy_Details\n  - \"claim_and_policy_details\" → CI_Claim_and_Policy_Details\n\
+              \  - \"assess_claim\" → CI_Assess_Claim\n\nPass claim_id, policy_id,\
+              \ and query to the chosen tool.\nReturn the tool response as-is (JSON\
+              \ with 'answer' and 'suggestion_context' keys).\nDo not summarize, reword,\
+              \ or add commentary."
+          model:
+            type: constant
+            value:
+              completion_params: {}
+              mode: chat
+              model: gpt-5.2
+              model_type: llm
+              provider: langgenius/openai/openai
+              type: model-selector
+          query:
+            type: constant
+            value: 'intent: {{#1782169896888.intent_name#}}
+
+              query: {{#conversation.effective_query#}}
+
+              claim_id: {{#conversation.claim_id#}}
+
+              policy_id: {{#conversation.policy_id#}}'
+          tools:
+            type: constant
+            value:
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: de941b2a-204e-4b9c-af0e-2d2921dbe8dd
+              provider_show_name: CI_Claim_and_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: CI_Claim_and_Policy_Details
+              tool_name: CI_Claim_and_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 3d66ee13-a8d8-4821-bba6-4754764590f9
+              provider_show_name: CI_Assess_Claim
+              settings: {}
+              tool_description: ''
+              tool_label: CI_Assess_Claim
+              tool_name: CI_Assess_Claim
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 5d7e694d-e528-46e8-b540-d0a7602d19dc
+              provider_show_name: CI_Claim_Details
+              settings: {}
+              tool_description: ''
+              tool_label: CI_Claim_Details
+              tool_name: CI_Claim_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 21d4cd5e-2d88-4d79-840d-2bc88fd73099
+              provider_show_name: CI_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: CI_Policy_Details
+              tool_name: CI_Policy_Details
+              type: workflow
+        agent_strategy_label: FunctionCalling
+        agent_strategy_name: function_calling
+        agent_strategy_provider_name: langgenius/agent/agent
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 50
+        meta:
+          minimum_dify_version: 1.7.0
+          version: 0.0.2
+        output_schema: {}
+        plugin_unique_identifier: langgenius/agent:0.0.39@ceea6a76b3a495de2df2a55bcea82e903d49b06f4d8e1463c2aa085657f27164
+        selected: false
+        title: ci_agent
+        tool_node_version: '2'
+        type: agent
+      height: 188
+      id: '1782170297850'
+      parentId: '1782169880290'
+      position:
+        x: 696.5261431684785
+        y: 507.79326207469137
+      positionAbsolute:
+        x: 7458.055936373808
+        y: 1016.8767733821426
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        agent_parameters:
+          instruction:
+            type: constant
+            value: "You are a Disability insurance specialist agent.\n\nRead `intent`\
+              \ from the query to decide which operation tool to call:\n  - \"claim_details\"\
+              \ → Disability_Claim_Details\n  - \"policy_details\" → Disability_Policy_Details\n\
+              \  - \"claim_and_policy_details\" → Disability_Claim_and_Policy_Details\n\
+              \  - \"assess_claim\" → Disability_Assess_Claim\n\nPass claim_id, policy_id,\
+              \ and query to the chosen tool.\nReturn the tool response as-is (JSON\
+              \ with 'answer' and 'suggestion_context' keys).\nDo not summarize, reword,\
+              \ or add commentary."
+          model:
+            type: constant
+            value:
+              completion_params: {}
+              mode: chat
+              model: gpt-5.2
+              model_type: llm
+              provider: langgenius/openai/openai
+              type: model-selector
+          query:
+            type: constant
+            value: 'intent: {{#1782169896888.intent_name#}}
+
+              query: {{#conversation.effective_query#}}
+
+              claim_id: {{#conversation.claim_id#}}
+
+              policy_id: {{#conversation.policy_id#}}'
+          tools:
+            type: constant
+            value:
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 1f7d6f11-a0d5-455f-ab35-db346d2abc21
+              provider_show_name: Disability_Assess_Claim
+              settings: {}
+              tool_description: ''
+              tool_label: Disability_Assess_Claim
+              tool_name: Disability_Assess_Claim
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: 2a0427c7-e704-4807-a4c9-a26bd0384964
+              provider_show_name: Disability_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Disability_Policy_Details
+              tool_name: Disability_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                policy_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: b0f1a7fe-404d-44e8-ba1c-f730cd483e26
+              provider_show_name: Disability_Claim_and_Policy_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Disability_Claim_and_Policy_Details
+              tool_name: Disability_Claim_and_Policy_Details
+              type: workflow
+            - enabled: true
+              extra:
+                description: ''
+              parameters:
+                claim_id:
+                  auto: 1
+                  value: null
+                query:
+                  auto: 1
+                  value: null
+              provider_name: b70d96a5-4dee-4a09-83b1-7b0d1459a15e
+              provider_show_name: Disability_Claim_Details
+              settings: {}
+              tool_description: ''
+              tool_label: Disability_Claim_Details
+              tool_name: Disability_Claim_Details
+              type: workflow
+        agent_strategy_label: FunctionCalling
+        agent_strategy_name: function_calling
+        agent_strategy_provider_name: langgenius/agent/agent
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          window:
+            enabled: false
+            size: 50
+        meta:
+          minimum_dify_version: 1.7.0
+          version: 0.0.2
+        output_schema: {}
+        plugin_unique_identifier: langgenius/agent:0.0.39@ceea6a76b3a495de2df2a55bcea82e903d49b06f4d8e1463c2aa085657f27164
+        selected: false
+        title: disability_agent
+        tool_node_version: '2'
+        type: agent
+      height: 188
+      id: '1782170312030'
+      parentId: '1782169880290'
+      position:
+        x: 694.5166946826421
+        y: 727.3296780537775
+      positionAbsolute:
+        x: 7456.046487887972
+        y: 1236.4131893612287
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        code: "def main(\n    api_label: str = \"\",\n    life_body: str = \"\",\n\
+          \    health_body: str = \"\",\n    ci_body: str = \"\",\n    disability_body:\
+          \ str = \"\"\n) -> dict:\n    import json\n    import re\n\n    label =\
+          \ (api_label or \"Result\").strip()\n\n    raw = \"\"\n    for v in [\n\
+          \        life_body,\n        health_body,\n        ci_body,\n        disability_body\n\
+          \    ]:\n        if isinstance(v, str) and v.strip():\n            raw =\
+          \ v.strip()\n            break\n\n    def parse_json_loose(text: str) ->\
+          \ dict:\n        if not text:\n            return {}\n        try:\n   \
+          \         obj = json.loads(text)\n            if isinstance(obj, dict):\n\
+          \                return obj\n        except Exception:\n            pass\n\
+          \        m = re.search(r\"\\{[\\s\\S]*\\}\", text)\n        if m:\n    \
+          \        try:\n                obj = json.loads(m.group(0))\n          \
+          \      if isinstance(obj, dict):\n                    return obj\n     \
+          \       except Exception:\n                pass\n        return {}\n\n \
+          \   parsed = parse_json_loose(raw)\n\n    if isinstance(parsed.get(\"tool_payload\"\
+          ), str) and parsed.get(\"tool_payload\").strip():\n        inner = parse_json_loose(parsed[\"\
+          tool_payload\"])\n        if isinstance(inner, dict) and inner:\n      \
+          \      parsed = inner\n\n    # Support both 'formatted_result' and 'answer'\
+          \ keys\n    formatted = str(parsed.get(\"formatted_result\", \"\")).strip()\n\
+          \    if not formatted:\n        formatted = str(parsed.get(\"answer\", \"\
+          \")).strip()\n    if not formatted:\n        formatted = raw if raw else\
+          \ \"No data returned.\"\n\n    suggestion_context = parsed.get(\"suggestion_context\"\
+          )\n    if isinstance(suggestion_context, dict):\n        suggestion_context\
+          \ = json.dumps(suggestion_context, ensure_ascii=False)\n\n    if not isinstance(suggestion_context,\
+          \ str) or not suggestion_context.strip():\n        fallback_ctx = {\n  \
+          \          \"intent\": \"unknown\",\n            \"outcome\": \"success\"\
+          \ if formatted != \"No data returned.\" else \"no_data\",\n            \"\
+          entities\": {\"source\": label},\n            \"suggestion_topics\": [\"\
+          check another claim\", \"explain this result\", \"next steps\"],\n     \
+          \       \"constraints\": {\"language\": \"same_as_answer\", \"count\": 3,\
+          \ \"max_chars_each\": 60}\n        }\n        suggestion_context = json.dumps(fallback_ctx,\
+          \ ensure_ascii=False)\n\n    section_text = f\"**{label}**\\n{formatted}\"\
+          \n\n    packed_result = json.dumps(\n        {\n            \"api_label\"\
+          : label,\n            \"formatted_result\": section_text,\n            \"\
+          suggestion_context\": suggestion_context\n        },\n        ensure_ascii=False\n\
+          \    )\n\n    return {\n        \"formatted_result\": section_text,\n  \
+          \      \"suggestion_context\": suggestion_context,\n        \"packed_result\"\
+          : packed_result\n    }"
+        code_language: python3
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1782169880290'
+        outputs:
+          formatted_result:
+            children: null
+            type: string
+          packed_result:
+            children: null
+            type: string
+          suggestion_context:
+            children: null
+            type: string
+        selected: false
+        title: format_response
+        type: code
+        variables:
+        - value_selector:
+          - '1782169896888'
+          - api_label
+          value_type: string
+          variable: api_label
+        - value_selector:
+          - '1782170184175'
+          - text
+          value_type: string
+          variable: life_body
+        - value_selector:
+          - '1782170280774'
+          - text
+          value_type: string
+          variable: health_body
+        - value_selector:
+          - '1782170297850'
+          - text
+          value_type: string
+          variable: ci_body
+        - value_selector:
+          - '1782170312030'
+          - text
+          value_type: string
+          variable: disability_body
+      height: 52
+      id: '1782170622453'
+      parentId: '1782169880290'
+      position:
+        x: 1089.0669024244708
+        y: 486.31105066852035
+      positionAbsolute:
+        x: 7850.596695629801
+        y: 995.3945619759716
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        code: "def main(iteration_results=None, claim_id=\"\", policy_id=\"\") ->\
+          \ dict:\n    import json\n\n    if not isinstance(iteration_results, list):\n\
+          \        iteration_results = []\n\n    sections = []\n    intents = []\n\
+          \    outcomes = []\n    topics = []\n\n    def add_unique(arr, val):\n \
+          \       if val and val not in arr:\n            arr.append(val)\n\n    def\
+          \ parse_obj(x):\n        if isinstance(x, dict):\n            return x\n\
+          \        if isinstance(x, str):\n            s = x.strip()\n           \
+          \ if not s:\n                return {}\n            try:\n             \
+          \   o = json.loads(s)\n                return o if isinstance(o, dict) else\
+          \ {}\n            except Exception:\n                return {}\n       \
+          \ return {}\n\n    for item in iteration_results:\n        obj = parse_obj(item)\n\
+          \n        fr = str(obj.get(\"formatted_result\", \"\")).strip()\n      \
+          \  if fr and fr.lower() not in {\"no data returned.\", \"unknown_answer\"\
+          }:\n            sections.append(fr)\n\n        ctx_raw = obj.get(\"suggestion_context\"\
+          , \"\")\n        ctx = parse_obj(ctx_raw)\n\n        if not isinstance(ctx,\
+          \ dict):\n            continue\n\n        intent = str(ctx.get(\"intent\"\
+          , \"\")).strip()\n        outcome = str(ctx.get(\"outcome\", \"\")).strip()\n\
+          \n        add_unique(intents, intent)\n        add_unique(outcomes, outcome)\n\
+          \n        st = ctx.get(\"suggestion_topics\", [])\n        if isinstance(st,\
+          \ list):\n            for t in st:\n                add_unique(topics, str(t).strip())\n\
+          \        elif isinstance(st, dict):\n            if outcome and isinstance(st.get(outcome),\
+          \ list):\n                for t in st.get(outcome, []):\n              \
+          \      add_unique(topics, str(t).strip())\n            else:\n         \
+          \       for _, v in st.items():\n                    if isinstance(v, list):\n\
+          \                        for t in v:\n                            add_unique(topics,\
+          \ str(t).strip())\n\n    if sections:\n        merged_outcome = \"success\"\
+          \n    else:\n        priority = [\"rejected\", \"review_needed\", \"error\"\
+          , \"no_data\"]\n        merged_outcome = \"no_data\"\n        for p in priority:\n\
+          \            if p in outcomes:\n                merged_outcome = p\n   \
+          \             break\n\n    if not topics:\n        topics = [\n        \
+          \    \"check another claim\",\n            \"explain this result\",\n  \
+          \          \"next steps\"\n        ]\n\n    merged_ctx = {\n        \"intent\"\
+          : \"multi_tool_claims_flow\",\n        \"outcome\": merged_outcome,\n  \
+          \      \"entities\": {\n            \"claim_id\": (claim_id or \"\").strip(),\n\
+          \            \"policy_id\": (policy_id or \"\").strip(),\n            \"\
+          intent_list\": intents,\n            \"outcome_list\": outcomes\n      \
+          \  },\n        \"suggestion_topics\": topics[:12],\n        \"constraints\"\
+          : {\n            \"language\": \"same_as_answer\",\n            \"count\"\
+          : 3,\n            \"max_chars_each\": 60\n        }\n    }\n\n    return\
+          \ {\n        \"combined_sections\": \"\\n\\n\".join(sections) if sections\
+          \ else \"No data returned.\",\n        \"suggestion_context\": json.dumps(merged_ctx,\
+          \ ensure_ascii=False)\n    }"
+        code_language: python3
+        outputs:
+          combined_sections:
+            children: null
+            type: string
+          suggestion_context:
+            children: null
+            type: string
+        selected: false
+        title: unpack_iteration_results
+        type: code
+        variables:
+        - value_selector:
+          - '1782169880290'
+          - output
+          value_type: array[string]
+          variable: iteration_results
+        - value_selector:
+          - conversation
+          - claim_id
+          value_type: string
+          variable: claim_id
+        - value_selector:
+          - conversation
+          - policy_id
+          value_type: string
+          variable: policy_id
+      height: 52
+      id: '1782242098632'
+      position:
+        x: 8601.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 8601.230590724756
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_intent_list
+          variable_selector:
+          - conversation
+          - last_intent_list
+        - input_type: variable
+          operation: over-write
+          value:
+          - conversation
+          - pending_primary_intent
+          variable_selector:
+          - conversation
+          - last_primary_intent
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1782242098632'
+          - combined_sections
+          variable_selector:
+          - conversation
+          - last_combined_sections
+        selected: false
+        title: va_save_last_result_context
+        type: assigner
+        version: '2'
+      height: 136
+      id: '1782243432946'
+      position:
+        x: 8903.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 8903.230590724756
+        y: 918.5730465266404
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 50
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: a1975e61-ea68-4012-803e-c26aa2a5233f
+          role: system
+          text: 'You are a helpful insurance claims operations assistant.
+
+            You have retrieved data from one or more claim/policy services to answer
+            the user''s question.
+
+            Present the information clearly, grouped by section header.
+
+            Be concise and factual. Do not fabricate any data not present in the results.
+
+
+            STRICT OUTPUT RULES
+
+
+            1) TABLE-FIRST RULES
+
+            - ALWAYS try to format as a table by default.
+
+            - If markdown table is not valid, use bullet points.
+
+            - If table cannot be made valid, fallback to bullets.
+
+
+            2) Never output raw JSON, code blocks, or metadata fields
+
+            - Do not print: intent, outcome, entities, suggestion_context, constraints,
+            api_label.
+
+            - Do not print braces/brackets-only lines.
+
+
+            3) Remove unavailable values
+
+            - If a value is NA, N/A, Not available, Not Found, null, None, "-", or
+            empty: omit that field/row entirely.
+
+
+            4) Notes preservation
+
+            - Always keep meaningful explanatory notes.
+
+            - Place notes under a "## Notes" section as bullets.
+
+
+            5) Clean structure
+
+            - Prefer section headings (## ...).
+
+            - Keep concise.
+
+            - No duplicate lines.
+
+            - Collapse extra blank lines.'
+        - id: a49918cb-0fef-4f14-979c-5d48e37f7a26
+          role: user
+          text: 'Original question: {{#conversation.effective_query#}}
+
+            Claim ID: {{#conversation.claim_id#}}
+
+            Policy ID: {{#conversation.policy_id#}}
+
+
+            Here are the retrieved results:
+
+            {{#1782242098632.combined_sections#}}
+
+
+            TABLE-FIRST RULES
+
+            - ALWAYS try to format as a table by default.
+
+            - If markdown table is not valid, use bullet points.
+
+            - If table cannot be made valid, fallback to bullets.
+
+
+            Please format this into a clear, readable answer for the user.'
+        selected: false
+        title: multi_aggregator_llm
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782243495534'
+      position:
+        x: 9205.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 9205.230590724756
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '1782242098632'
+          - suggestion_context
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 80eb6149-8be5-42c2-8978-232984d26b3c
+          role: system
+          text: 'You are a helpful insurance claims assistant. Always use {{#1782242098632.suggestion_context#}}
+            to generate follow-up questions. The intent is to generate follow-up questions
+            that are relevant to {{#1782243495534.text#}} and helpful for the user.
+
+
+            Rules:
+
+            - Start all questions with "Do you..."
+
+            - All 3 questions must be distinct and different from each other.
+
+            - Output JSON array only.
+
+            - Exactly 3 questions.
+
+            - Same language as the assistant answer.
+
+            - Keep each question <= 60 characters.
+
+            - Questions must be actionable, helpful and relevant to claim/policy operations.
+
+            - No markdown, no explanation, no keys.
+
+
+            Output format:
+
+            ["q1","q2","q3"]'
+        - id: 307884ee-2805-4c69-98bd-177eeaeb7643
+          role: user
+          text: 'Assistant answer:
+
+            {{#1782243495534.text#}}
+
+
+            Suggestion context:
+
+            {{#context#}}'
+        selected: false
+        title: generate_followups
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1782243558677'
+      position:
+        x: 9507.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 9507.230590724756
+        y: 918.5730465266404
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(llm_text=\"\"):\n    import json\n\n    fallback = [\n   \
+          \     \"Do you want me to check another claim?\",\n        \"Would you like\
+          \ more detail on this result?\",\n        \"Should I help with the next\
+          \ related assessment?\"\n    ]\n\n    arr = None\n    try:\n        parsed\
+          \ = json.loads(llm_text) if isinstance(llm_text, str) else llm_text\n  \
+          \      if isinstance(parsed, list):\n            arr = [str(x).strip() for\
+          \ x in parsed if str(x).strip()]\n    except Exception:\n        arr = None\n\
+          \n    if not arr:\n        arr = fallback\n\n    clean = []\n    seen =\
+          \ set()\n    for q in arr:\n        q2 = q[:60].strip()\n        if q2 and\
+          \ q2.lower() not in seen:\n            seen.add(q2.lower())\n          \
+          \  clean.append(q2)\n        if len(clean) == 3:\n            break\n\n\
+          \    while len(clean) < 3:\n        clean.append(fallback[len(clean)])\n\
+          \n    return {\n        \"followups_json\": json.dumps(clean, ensure_ascii=False),\n\
+          \        \"followup_1\": clean[0],\n        \"followup_2\": clean[1],\n\
+          \        \"followup_3\": clean[2]\n    }"
+        code_language: python3
+        outputs:
+          followup_1:
+            children: null
+            type: string
+          followup_2:
+            children: null
+            type: string
+          followup_3:
+            children: null
+            type: string
+          followups_json:
+            children: null
+            type: string
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 1000
+        selected: false
+        title: validate_followups
+        type: code
+        variables:
+        - value_selector:
+          - '1782243558677'
+          - text
+          value_type: string
+          variable: llm_text
+      height: 82
+      id: '1782243623521'
+      position:
+        x: 9809.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 9809.230590724756
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(text_in: str) -> dict:\n    import re\n\n    text = (text_in\
+          \ or \"\").replace(\"\\r\\n\", \"\\n\")\n\n    NA_SET = {\"na\", \"n/a\"\
+          , \"not available\", \"not found\", \"none\", \"null\", \"-\", \"\"}\n\n\
+          \    def is_na(v: str) -> bool:\n        return v.strip().lower() in NA_SET\n\
+          \n    def strip_md_noise(s: str) -> str:\n        s = s.strip()\n      \
+          \  s = re.sub(r\"^\\s*[-*]\\s*\", \"\", s)\n        s = s.replace(\"**\"\
+          , \"\")\n        s = re.sub(r\"^`{3,}.*$\", \"\", s).strip()\n        return\
+          \ s\n\n    def looks_like_table_row(s: str) -> bool:\n        s = strip_md_noise(s)\n\
+          \        return s.count(\"|\") >= 2\n\n    def to_table_row(s: str) -> str:\n\
+          \        s = strip_md_noise(s)\n        s = s.strip(\"|\")\n        return\
+          \ f\"| {s} |\" if s else \"\"\n\n    def parse_row(s: str):\n        s =\
+          \ s.strip().strip(\"|\")\n        return [c.strip() for c in s.split(\"\
+          |\")]\n\n    def is_separator_row(cells):\n        if not cells:\n     \
+          \       return False\n        return all(re.fullmatch(r\":?-{3,}:?\", c\
+          \ or \"\") for c in cells)\n\n    lines = [ln for ln in text.split(\"\\\
+          n\")]\n    out = []\n    i = 0\n\n    while i < len(lines):\n        ln\
+          \ = lines[i]\n\n        if looks_like_table_row(ln):\n            block\
+          \ = []\n            j = i\n            while j < len(lines) and looks_like_table_row(lines[j]):\n\
+          \                row = to_table_row(lines[j])\n                if row:\n\
+          \                    block.append(row)\n                j += 1\n\n     \
+          \       rows = [parse_row(r) for r in block if r.strip()]\n            rows\
+          \ = [r for r in rows if r and not is_separator_row(r)]\n\n            if\
+          \ len(rows) >= 2:\n                header = rows[0]\n                col_n\
+          \ = len(header)\n                fixed_rows = []\n                for r\
+          \ in rows[1:]:\n                    if len(r) < col_n:\n               \
+          \         r = r + [\"\"] * (col_n - len(r))\n                    elif len(r)\
+          \ > col_n:\n                        r = r[:col_n-1] + [\" | \".join(r[col_n-1:])]\n\
+          \                    r = [(\"\" if is_na(c) else c) for c in r]\n      \
+          \              if any(c.strip() for c in r):\n                        fixed_rows.append(r)\n\
+          \                out.append(\"| \" + \" | \".join(header) + \" |\")\n  \
+          \              out.append(\"| \" + \" | \".join([\"---\"] * col_n) + \"\
+          \ |\")\n                for r in fixed_rows:\n                    out.append(\"\
+          | \" + \" | \".join(r) + \" |\")\n            else:\n                for\
+          \ r in block:\n                    out.append(r)\n            i = j\n  \
+          \          continue\n\n        s = strip_md_noise(ln)\n        m = re.match(r\"\
+          ^([^:\\n]{1,140})\\s*:\\s*(.+?)\\s*$\", s)\n        if m:\n            key\
+          \ = m.group(1).strip()\n            val = m.group(2).strip()\n         \
+          \   if is_na(val):\n                i += 1\n                continue\n \
+          \           out.append(f\"- **{key}:** {val}\")\n        else:\n       \
+          \     if s:\n                out.append(s)\n        i += 1\n\n    final_text\
+          \ = \"\\n\".join(out)\n    final_text = re.sub(r\"\\n{3,}\", \"\\n\\n\"\
+          , final_text).strip()\n\n    return {\"cleaned_sections\": final_text}"
+        code_language: python3
+        outputs:
+          cleaned_sections:
+            children: null
+            type: string
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 1000
+        selected: false
+        title: global_cleanup
+        type: code
+        variables:
+        - value_selector:
+          - '1782243495534'
+          - text
+          value_type: string
+          variable: text_in
+      height: 82
+      id: '1782243688518'
+      position:
+        x: 10111.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 10111.230590724756
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(answer_text=\"\", q1=\"\", q2=\"\", q3=\"\"):\n    final_text\
+          \ = (\n        f\"{answer_text}\\n\\n\"\n        f\"**Suggested next questions:**\\\
+          n\"\n        f\"1. {q1}\\n\"\n        f\"2. {q2}\\n\"\n        f\"3. {q3}\"\
+          \n    )\n    return {\"final_text\": final_text}"
+        code_language: python3
+        outputs:
+          final_text:
+            children: null
+            type: string
+        selected: false
+        title: compose_final_answer
+        type: code
+        variables:
+        - value_selector:
+          - '1782243688518'
+          - cleaned_sections
+          value_type: string
+          variable: answer_text
+        - value_selector:
+          - '1782243623521'
+          - followup_1
+          value_type: string
+          variable: q1
+        - value_selector:
+          - '1782243623521'
+          - followup_2
+          value_type: string
+          variable: q2
+        - value_selector:
+          - '1782243623521'
+          - followup_3
+          value_type: string
+          variable: q3
+      height: 52
+      id: '1782243754583'
+      position:
+        x: 10413.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 10413.230590724756
+        y: 918.5730465266404
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#1782243754583.final_text#}}'
+        selected: false
+        title: multi_answer
+        type: answer
+        variables: []
+      height: 103
+      id: '1782243844134'
+      position:
+        x: 10715.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 10715.230590724756
+        y: 918.5730465266404
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: constant
+          operation: set
+          value: claims_operations
+          variable_selector:
+          - conversation
+          - last_answer_type
+        selected: false
+        title: va_set_claims_final
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1782243860083'
+      position:
+        x: 11017.230590724756
+        y: 918.5730465266404
+      positionAbsolute:
+        x: 11017.230590724756
+        y: 918.5730465266404
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -709.4271644051864
+      y: -215.6374284202683
+      zoom: 0.5905412995632059
+  rag_pipeline_variables: []

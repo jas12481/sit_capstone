@@ -1,0 +1,5 @@
+{
+  "env": {
+    "MCP_BASE_URL": "https://sit-capstone.onrender.com"
+  }
+}

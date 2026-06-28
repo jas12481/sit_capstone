@@ -1,7 +1,7 @@
 # AIA Capstone Project — Full Context Document
 > **For:** Claude Code and any AI assistant picking up this project  
 > **Author:** Jasbir Kaur (2302990), Applied Computing (FinTech), Singapore Institute of Technology  
-> **Last updated:** 24 June 2026 (active build log)
+> **Last updated:** 29 June 2026 (active build log)
 
 ---
 
@@ -464,16 +464,16 @@ End
 - All four workflows published in Dify and available as tools for the orchestrator
 - DSL YAML exports in `dify-data/`
 
-### Orchestrator Architecture (Test_Orchestrator_1-5.yml — current working version)
+### Orchestrator Architecture (Test_Orchestrator_1-7.yml — final working version ✅)
 
 Built entirely in Dify's advanced-chat UI (not YAML-edited) after discovering AI-generated YAML caused hangs due to missing `memory` blocks and non-UUID prompt template IDs.
 
-**65 nodes, 75 edges, 15 conversation variables. All nodes use GPT-5.2.**
+**69 nodes, 15 conversation variables. All nodes use GPT-5.2. Passes all test cases.**
 
 **Key routing flow:**
 ```
 User Input
-  → followup_router (LLM, structured_output) — is_followup / reuse_last_intents / needs_ids
+  → followup_router (LLM, structured_output, memory ON) — is_followup / reuse_last_intents / needs_ids
   → if/else_followup
       [followup] → va_prepare_followup_context_reuse → IF/ELSE 3
           [claims] → if_followup_has_no_ids → if_followup_reuse_last_intents
@@ -483,7 +483,13 @@ User Input
                               → intent_identifier (LLM, structured_output) — claim_details / policy_details /
                                                                                claim_and_policy_details / assess_claim
                               → compute_requires_ids → ID availability gates
-                              → prepare_intents_for_iteration → Iteration
+                              → prepare_intents_for_iteration → va_clear_awaiting_flags
+                              → if_needs_domain_lookup
+                                  [true: CLM present, domain empty] → domain_lookup (HTTP GET /claims/domain)
+                                                                     → parse_domain_response (Code)
+                                                                     → va_set_domain_from_lookup
+                                  [false] → (pass through)
+                              → Iteration
                                   → map_intent → IF/ELSE 13 (domain routing on intended_domain)
                                       [life]        → life_agent        → format_response
                                       [health]      → health_agent      → format_response
@@ -499,21 +505,20 @@ User Input
 
 **Conversation variables (15):** `claim_id`, `policy_id`, `intended_domain`, `awaiting_claim_id`, `awaiting_policy_id`, `pending_intent_list`, `pending_primary_intent`, `last_intent_list`, `last_primary_intent`, `last_combined_sections`, `last_answer_type`, `last_faq_answer`, `effective_query`, `pending_query`, `pending_intents_json`
 
-**Known issue:** CLM-only queries (no Policy ID) set `intended_domain = ""` since domain is inferred from Policy ID prefix. `IF/ELSE 13` falls through to `unknown_answer_iter`. Solution: domain lookup step or generic all-domain agent in the false branch.
-
-**Output artifact issue:** When `unknown_answer_iter` path is taken, `compose_final_answer` prepends `unknown_answer##` to output. Needs cleanup in `format_response` or `compose_final_answer` code node.
-
 **`last_answer_type` values:** `claims` (for claims path) and `faq` (for FAQ path). `IF/ELSE 3` uses `contains` matching so these are compatible with longer values like `claims_operations`.
 
-### Remaining Agents
+**CLM-only domain routing (resolved):** When only a Claim ID is given with no Policy ID, `intended_domain` would be empty and `IF/ELSE 13` would fall through to `unknown_answer_iter`. Fixed via 4-node domain lookup step (`if_needs_domain_lookup` → `domain_lookup` → `parse_domain_response` → `va_set_domain_from_lookup`) calling `GET /claims/domain` on the MCP server, inserted between `va_clear_awaiting_flags` and `Iteration`.
 
-**Document Generation Agent** — input: `claim_id`, `document_type`. Branches: rejection letter / approval letter / claims summary. Generates professional formatted document with real data.
+**Prompt calibration notes:**
+- `followup_router`: memory enabled (window 3-5); expanded `is_followup=true` patterns to cover "explain/elaborate/clarify/further"; `needs_ids=false` when followup; boolean output type enforced explicitly in output contract
+- `query_type_router`: HOW/WHAT/WHY questions → `general_faq`; hard gate against returning `unknown` for insurance queries; never-unknown rule added
+- `intent_identifier`: removed "Requires a Claim ID" from all 4 intent definitions; classify by intent not by ID availability; no-ID examples added; examples disclaimer added
 
-**Claims Intelligence Agent** — four branches: Operational (workload, status), Anomaly Detection (suspicious patterns), Cross-Policy (all policies for customer), Analytical (management summaries, volume reports).
+**Remaining minor issue:** When `unknown_answer_iter` path runs (no domain match), `compose_final_answer` may prepend `unknown_answer##` to output — cosmetic formatting issue, does not affect routing or data correctness.
 
 ---
 
-## 10. Component 2 — MCP Server (FastAPI v2.0.0)
+## 10. Component 2 — MCP Server (FastAPI v2.1.0)
 
 All endpoints use **query parameters** (not path parameters).
 
@@ -524,7 +529,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 
 **Cloud:** https://sit-capstone.onrender.com
 
-### All 13 Endpoints
+### All 14 Endpoints
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -895,7 +900,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Compliance Officer** | Audit log — every decision traceable to rules, clauses, model version, prompt version |
 | **Internal Auditor** | assessment_logs + change_approvals + MLflow links — complete decision and change history |
 | **IT / AI Engineer** | MLflow tracking + DSL Change Management — prompt versions, model performance, change control |
-| **Business Team (Kenix)** | Claims Intelligence Agent analytical summaries feed into business process redesign |
+| **Business Team (Kenix)** | Orchestrator chatbot + dashboard — real-time claim status, domain-routed assessments, management summaries |
 
 ---
 
@@ -926,14 +931,12 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | Disability_Policy_Details workflow | ✅ Done | |
 | Disability_Claim_and_Policy_Details workflow | ✅ Done | |
 | Disability_Assess_Claim workflow | ✅ Done | |
-| Orchestrator Chatbot | 🟨 In progress | Test_Orchestrator_1-5.yml (65 nodes); flow works end-to-end; CLM-only domain routing issue pending; `unknown_answer##` prefix artifact pending |
+| Orchestrator Chatbot | ✅ Done | Test_Orchestrator_1-7.yml (69 nodes); all test cases pass; CLM-only domain routing resolved via /claims/domain; followup/intent/router prompts calibrated |
 | MLflow Prompt Registry | 🔲 To build | Register all current prompts as v1.0 |
 | Evaluation script (80 runs) | 🟨 In progress | Structure defined; full execution pending |
-| dsl_manager/ (parser, diff, approvals, git) | 🔲 To build | 4 modules |
+| dsl_manager/ (parser, diff, approvals, git) | ✅ Done | parser, diff, approvals, git_commit, __main__ CLI |
 | evaluation/prompt_advisor.py | 🔲 To build | Reads MLflow, proposes improvements |
-| Document Generation Agent | 🔲 To build | |
-| Claims Intelligence Agent | 🔲 To build | 4 branches |
-| Frontend — all 4 views | 🔲 To build | Chat, Audit Log, Dashboard, DSL Management |
+| Frontend — all 4 views | ✅ Done | Next.js 14, Tailwind, Recharts — Chat, Audit Log, Dashboard, DSL Management |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
 
@@ -943,11 +946,9 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 | Period | Target |
 |---|---|
-| **Now (late June)** | Fix orchestrator: CLM-only domain routing + `unknown_answer##` artifact; connect 16 sub-workflows as tools to domain agents; full end-to-end test with real claim/policy IDs |
-| **Next** | Register prompts in MLflow Prompt Registry; run evaluation study (80 runs) |
-| **Then** | Build dsl_manager/ modules; build prompt_advisor.py |
-| **Then** | Document Generation Agent; Claims Intelligence Agent |
-| **Then** | Frontend — all 4 views |
+| **Now (late June)** | DSL Change Management System — `dsl_manager/` modules (`parser.py`, `diff.py`, `approvals.py`, `git_commit.py`); Prompt Advisor (`evaluation/prompt_advisor.py`) |
+| **Next** | Frontend — all 4 views (Chat, Audit Log, Dashboard, DSL Management) |
+| **Then** | Register all prompts in MLflow Prompt Registry as v1.0; run evaluation study (80 runs × 4 strategies) |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 

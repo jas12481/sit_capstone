@@ -1,0 +1,707 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: CI_Claim_Details
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.3.8@592c8252795b5f75807de2d609a03196ed02596b409f7642b4a07548c7ff57ef
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779133074056-source-1780335229091-target
+      selected: false
+      source: '1779133074056'
+      sourceHandle: source
+      target: '1780335229091'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1780335229091-source-1780335234865-target
+      selected: false
+      source: '1780335229091'
+      sourceHandle: source
+      target: '1780335234865'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1780335234865-source-1779133170926-target
+      selected: false
+      source: '1780335234865'
+      sourceHandle: source
+      target: '1779133170926'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1780461414069-source-1779126997736-target
+      selected: false
+      source: '1780461414069'
+      sourceHandle: source
+      target: '1779126997736'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1778956618758-source-1780461414069-target
+      source: '1778956618758'
+      sourceHandle: source
+      target: '1780461414069'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1779126997736-source-1779033811215-target
+      source: '1779126997736'
+      sourceHandle: source
+      target: '1779033811215'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779033811215-source-1779133074056-target
+      source: '1779033811215'
+      sourceHandle: source
+      target: '1779133074056'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: claim_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: claim_id
+      height: 135
+      id: '1778956618758'
+      position:
+        x: 82
+        y: 283
+      positionAbsolute:
+        x: 82
+        y: 283
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: fdeaadbb-9ffc-4ee8-8c08-5cb03a475b0e
+          role: system
+          text: 'You are a response-focus extractor for a critical-illness-claim details workflow.
+
+
+            Your job:
+
+            Read the user''s query and decide:
+
+            1) which claim sections are requested
+
+            2) how much detail is needed
+
+            3) whether IDs must be shown
+
+
+            Rules:
+
+            - Return only structured output matching schema.
+
+            - Do not answer the user question directly.
+
+            - If unclear, choose detail_level="standard" and include ["status","amounts","timeline"].
+
+            - Never return sections outside the allowed list.'
+        - id: 10e95306-2630-430c-bca3-3bdf6be634bc
+          role: user
+          text: 'User query:
+
+            {{#1778956618758.query#}}
+
+
+            Optional claim_id input:
+
+            {{#1778956618758.claim_id#}}'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              detail_level:
+                enum:
+                - brief
+                - standard
+                - full
+                type: string
+              must_include_ids:
+                type: boolean
+              requested_sections:
+                items:
+                  enum:
+                  - summary
+                  - status
+                  - amounts
+                  - timeline
+                  - decision_reason
+                  - officer_assignment
+                  - next_steps
+                  - notes
+                  type: string
+                type: array
+            required:
+            - requested_sections
+            - detail_level
+            - must_include_ids
+            type: object
+        structured_output_enabled: true
+        title: extract_response_focus
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779033811215'
+      position:
+        x: 1142.651487314089
+        y: 267.2766843870624
+      positionAbsolute:
+        x: 1142.651487314089
+        y: 267.2766843870624
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: claim_id:{{#1780461414069.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claim
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1779126997736'
+      position:
+        x: 818.9053751372462
+        y: 267.2766843870624
+      positionAbsolute:
+        x: 818.9053751372462
+        y: 267.2766843870624
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 27d3d3af-2798-46e7-b1b6-db4db43d1a31
+          role: system
+          text: 'You are a claims response formatter for a CLAIM_ONLY workflow.
+
+
+            Your task is to transform raw claim data into a concise, professional,
+            machine-friendly JSON response.
+
+
+            Output rules:
+
+            1) Return ONLY valid JSON matching the required output schema. No markdown,
+            no prose outside JSON.
+
+            2) Use only facts present in the input. Do not invent values.
+
+            3) Respect requested_sections and detail_level from Focus.
+
+            4) If must_include_ids=true, always include claim_id and policy_id when
+            available.
+
+            5) If raw claim data is an array, use the first item as the claim record.
+
+            6) If a field is unavailable, use null (not "Not available").
+
+            7) Keep numeric fields as numbers (e.g., claim_amount, approved_amount),
+            not strings.
+
+            8) Keep dates in YYYY-MM-DD when available.
+
+            9) Do not include noisy/internal notes unless "notes" is explicitly requested
+            in requested_sections.
+
+            10) Tone should be clear and operational for internal insurance staff.
+
+
+            Section behavior:
+
+            - brief: only essentials, short status + next action
+
+            - standard: essentials + practical context
+
+            - full: complete explanation with operational context
+
+
+            Priority:
+
+            - Put requested sections first.
+
+            - Add only minimal supporting context.'
+        - id: 72de7f70-2d1a-4fd9-853d-86210c9582bf
+          role: user
+          text: "User query:\n{{#1778956618758.query#}}\n\nRaw claim data:\n{{#1779126997736.body#}}\n\
+            \nFocus:\n{{#1779033811215.structured_output#}}\n\nFormat the claim response\
+            \ as structured JSON for internal operations.\n\nRequired output shape:\n\
+            {\n  \"title\": \"Claim Details — <claim_id_or_unknown>\",\n  \"claim_summary\"\
+            : {\n    \"claim_id\": string|null,\n    \"policy_id\": string|null,\n\
+            \    \"customer_id\": string|null,\n    \"claim_type\": string|null,\n\
+            \    \"claim_category\": string|null,\n    \"claim_date\": string|null,\n\
+            \    \"incident_date\": string|null,\n    \"claim_amount\": number|null,\n\
+            \    \"approved_amount\": number|null,\n    \"payment_date\": string|null,\n\
+            \    \"status\": string|null,\n    \"rejection_reason\": string|null,\n\
+            \    \"assigned_officer\": string|null\n  },\n  \"status_explanation\"\
+            : string,\n  \"next_steps\": string\n}\n\nAdditional instructions:\n-\
+            \ Keep claim_summary fields stable (do not rename keys).\n- If status\
+            \ is approved, next_steps should focus on payout confirmation/reconciliation.\n\
+            - If status is rejected, next_steps should focus on reason clarification\
+            \ and appeal/escalation path.\n- If status is pending/under_review, next_steps\
+            \ should focus on outstanding checks/documents and expected review path.\n\
+            - Include \"notes\" only if requested_sections includes \"notes\"; otherwise\
+            \ omit notes.\nReturn JSON only."
+        selected: true
+        structured_output:
+          schema:
+            properties:
+              claim_summary:
+                properties:
+                  approved_amount:
+                    type: string
+                  assigned_officer:
+                    type: string
+                  claim_amount:
+                    type: string
+                  claim_category:
+                    type: string
+                  claim_date:
+                    type: string
+                  claim_id:
+                    type: string
+                  claim_type:
+                    type: string
+                  customer_id:
+                    type: string
+                  incident_date:
+                    type: string
+                  notes:
+                    type: string
+                  payment_date:
+                    type: string
+                  policy_id:
+                    type: string
+                  rejection_reason:
+                    type: string
+                  status:
+                    type: string
+                type: object
+              next_steps:
+                description: What would typically happen next for a claim in this
+                  status
+                type: string
+              status_explanation:
+                description: Plain English explanation of what the current status
+                  means
+                type: string
+              title:
+                description: Response title e.g. 'Claim Details — CLM-0045'
+                type: string
+            required:
+            - title
+            - claim_summary
+            - status_explanation
+            - next_steps
+            type: object
+        structured_output_enabled: true
+        title: format_claim_response
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779133074056'
+      position:
+        x: 1453.1509956997747
+        y: 228.13675673616757
+      positionAbsolute:
+        x: 1453.1509956997747
+        y: 228.13675673616757
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1780335234865'
+          - merged_json
+          value_type: string
+          variable: claim_answer
+        selected: false
+        title: claim_answer
+        type: end
+      height: 88
+      id: '1779133170926'
+      position:
+        x: 2508.4857600831556
+        y: 221.37885811967004
+      positionAbsolute:
+        x: 2508.4857600831556
+        y: 221.37885811967004
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 3c8c1025-21d7-4984-b4b7-ddd1aeb3fbe2
+          role: system
+          text: "You are a machine-context generator for downstream follow-up orchestration\
+            \ in a critical-illness-claim details workflow.\n\nTask:\nGenerate a compact `suggestion_context`\
+            \ object from the user query and formatted claim response.\n\nRules:\n\
+            1) Return ONLY valid JSON matching the schema.\n2) Do NOT generate explicit\
+            \ follow-up questions.\n3) Use only facts present in the input.\n4) `path_type`\
+            \ must be \"CLAIM_ONLY\".\n5) `outcome_type` should reflect claim status:\n\
+            \   - approved -> APPROVED\n   - rejected -> REJECTED\n   - pending ->\
+            \ PENDING\n   - under_review -> UNDER_REVIEW\n   - otherwise -> UNKNOWN\n\
+            6) `follow_up_themes` must be short topic labels (not full questions).\n\
+            7) `missing_information` should include only truly missing useful items.\n\
+            8) `next_decision_points` should be concrete operational next checks/actions.\n\
+            \nKeep output concise and practical."
+        - id: eaef2d8b-d3ec-4087-9874-d3990e2c29d4
+          role: user
+          text: 'Build `suggestion_context` for this CLAIM_ONLY response.
+
+
+            User query:
+
+            {{#1778956618758.query#}}
+
+
+            Formatted claim response:
+
+            {{#1779133074056.structured_output#}}
+
+
+            Instructions:
+
+            - Fill `entities` from available claim fields.
+
+            - Set `outcome_type` from claim status.
+
+            - Provide 3-6 concise `follow_up_themes`.
+
+            - Add only necessary `missing_information`.
+
+            - Provide 2-5 actionable `next_decision_points`.
+
+
+            Return JSON only.'
+        selected: false
+        structured_output:
+          schema:
+            additionalProperties: false
+            properties:
+              entities:
+                additionalProperties: false
+                properties:
+                  claim_id:
+                    type: string
+                  claim_status:
+                    type: string
+                  policy_id:
+                    type: string
+                required:
+                - claim_id
+                - policy_id
+                - claim_status
+                type: object
+              follow_up_themes:
+                items:
+                  type: string
+                maxItems: 6
+                minItems: 3
+                type: array
+              missing_information:
+                items:
+                  type: string
+                type: array
+              next_decision_points:
+                items:
+                  type: string
+                maxItems: 5
+                minItems: 2
+                type: array
+              outcome_type:
+                enum:
+                - APPROVED
+                - REJECTED
+                - PENDING
+                - UNDER_REVIEW
+                - UNKNOWN
+                type: string
+              path_type:
+                enum:
+                - CLAIM_ONLY
+                type: string
+            required:
+            - path_type
+            - outcome_type
+            - entities
+            - follow_up_themes
+            - missing_information
+            - next_decision_points
+            type: object
+        structured_output_enabled: true
+        title: build_claims_suggestion_context
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780335229091'
+      position:
+        x: 1805.4278061815683
+        y: 214.62095950317251
+      positionAbsolute:
+        x: 1805.4278061815683
+        y: 214.62095950317251
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n     \
+          \   return v\n    if isinstance(v, str):\n        try:\n            return\
+          \ json.loads(v)\n        except Exception:\n            return v\n    return\
+          \ v\n\ndef main(answer, suggestion_context):\n    merged = {\n        \"\
+          answer\": _to_obj(answer),\n        \"suggestion_context\": _to_obj(suggestion_context)\n\
+          \    }\n    return {\n        \"merged_json\": json.dumps(merged, ensure_ascii=False)\n\
+          \    }"
+        code_language: python3
+        outputs:
+          merged_json:
+            children: null
+            type: string
+        selected: false
+        title: merge_answer_and_context_claims
+        type: code
+        variables:
+        - value_selector:
+          - '1779133074056'
+          - structured_output
+          value_type: object
+          variable: answer
+        - value_selector:
+          - '1780335229091'
+          - structured_output
+          value_type: object
+          variable: suggestion_context
+      height: 52
+      id: '1780335234865'
+      position:
+        x: 2166.248893730046
+        y: 221.37885811967004
+      positionAbsolute:
+        x: 2166.248893730046
+        y: 221.37885811967004
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
+          \ q:\n        return \"\"\n    # Matches CLM-0001, CLM-12345, etc.\n   \
+          \ m = re.search(r\"\\b(CLM-\\d{3,6})\\b\", q.upper())\n    return m.group(1)\
+          \ if m else \"\"\n\ndef main(start_claim_id=\"\", query=\"\"):\n    resolved\
+          \ = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n    return\
+          \ {\"resolved_claim_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_claim_id:
+            children: null
+            type: string
+        selected: false
+        title: resolve_claim_id
+        type: code
+        variables:
+        - value_selector:
+          - '1778956618758'
+          - claim_id
+          value_type: string
+          variable: start_claim_id
+        - value_selector:
+          - '1778956618758'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1780461414069'
+      position:
+        x: 459.34982131831373
+        y: 318.8747041194431
+      positionAbsolute:
+        x: 459.34982131831373
+        y: 318.8747041194431
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 119.56098099789415
+      y: 97.08501069924216
+      zoom: 0.9756428644515557
+  rag_pipeline_variables: []

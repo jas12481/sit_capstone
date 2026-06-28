@@ -1,0 +1,1619 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Disability_Assess_Claim
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.3.8@592c8252795b5f75807de2d609a03196ed02596b409f7642b4a07548c7ff57ef
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: code
+      id: 1779135995524-source-1779138546683-target
+      selected: false
+      source: '1779135995524'
+      sourceHandle: source
+      target: '1779138546683'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1779138546683-source-17791384433540-target
+      selected: false
+      source: '1779138546683'
+      sourceHandle: source
+      target: '17791384433540'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 17792013939140-source-1779201495095-target
+      selected: false
+      source: '17792013939140'
+      sourceHandle: source
+      target: '1779201495095'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779201495095-source-1779201857626-target
+      selected: false
+      source: '1779201495095'
+      sourceHandle: source
+      target: '1779201857626'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779201857626-source-1779202255611-target
+      selected: false
+      source: '1779201857626'
+      sourceHandle: source
+      target: '1779202255611'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779202255611-source-1779204035193-target
+      selected: false
+      source: '1779202255611'
+      sourceHandle: source
+      target: '1779204035193'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: code
+      id: 17791384433540-source-1779208212182-target
+      source: '17791384433540'
+      sourceHandle: source
+      target: '1779208212182'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1779208212182-source-17792013939140-target
+      source: '1779208212182'
+      sourceHandle: source
+      target: '17792013939140'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1779204035193-source-1780337740183-target
+      source: '1779204035193'
+      sourceHandle: source
+      target: '1780337740183'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1780337744907-source-1779204961211-target
+      source: '1780337744907'
+      sourceHandle: source
+      target: '1779204961211'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1778956618758-source-1780461414069-target
+      selected: false
+      source: '1778956618758'
+      sourceHandle: source
+      target: '1780461414069'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1780461414069-source-1779135995524-target
+      source: '1780461414069'
+      sourceHandle: source
+      target: '1779135995524'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1780337740183-source-1781466482947-target
+      source: '1780337740183'
+      sourceHandle: source
+      target: '1781466482947'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1781466482947-source-1781468605100-target
+      source: '1781466482947'
+      sourceHandle: source
+      target: '1781468605100'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1781468605100-source-1781468824586-target
+      source: '1781468605100'
+      sourceHandle: source
+      target: '1781468824586'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1781468824586-source-1781469231691-target
+      source: '1781468824586'
+      sourceHandle: source
+      target: '1781469231691'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1781469231691-source-1780337744907-target
+      source: '1781469231691'
+      sourceHandle: source
+      target: '1780337744907'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: claim_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: claim_id
+      height: 135
+      id: '1778956618758'
+      position:
+        x: 546.5644956674633
+        y: 895.2793396033829
+      positionAbsolute:
+        x: 546.5644956674633
+        y: 895.2793396033829
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: claim_id:{{#1780461414069.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claim_assessment
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1779135995524'
+      position:
+        x: 1287.7450321411343
+        y: 902.1591804527927
+      positionAbsolute:
+        x: 1287.7450321411343
+        y: 902.1591804527927
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: policy_id:{{#1779138546683.policy_id_from_claim#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_policy_assessment
+        type: http-request
+        url: https://sit-capstone.onrender.com/policies
+        variables: []
+      height: 138
+      id: '17791384433540'
+      position:
+        x: 1939.1733408930736
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 1939.1733408930736
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and\
+          \ v:\n        return v[0]\n    if isinstance(v, dict):\n        return v\n\
+          \    if isinstance(v, str):\n        try:\n            obj = json.loads(v)\n\
+          \            if isinstance(obj, list) and obj:\n                return obj[0]\n\
+          \            if isinstance(obj, dict):\n                return obj\n   \
+          \     except Exception:\n            return {}\n    return {}\n\ndef main(claim_body):\n\
+          \    c = _first_record(claim_body)\n    return {\n        \"claim_id_from_data\"\
+          : c.get(\"claim_id\", \"\"),\n        \"policy_id_from_claim\": c.get(\"\
+          policy_id\", \"\"),\n        \"claim_status\": c.get(\"status\", \"\"),\n\
+          \        \"claim_type\": c.get(\"claim_type\", \"\"),\n        \"claim_category\"\
+          : c.get(\"claim_category\", \"\"),\n        \"claim_amount\": \"\" if c.get(\"\
+          claim_amount\") is None else str(c.get(\"claim_amount\")),\n        \"incident_date\"\
+          : c.get(\"incident_date\", \"\"),\n        \"claim_record_json\": json.dumps(c,\
+          \ ensure_ascii=False)\n    }"
+        code_language: python3
+        outputs:
+          claim_amount:
+            children: null
+            type: string
+          claim_category:
+            children: null
+            type: string
+          claim_id_from_data:
+            children: null
+            type: string
+          claim_record_json:
+            children: null
+            type: string
+          claim_status:
+            children: null
+            type: string
+          claim_type:
+            children: null
+            type: string
+          incident_date:
+            children: null
+            type: string
+          policy_id_from_claim:
+            children: null
+            type: string
+        selected: false
+        title: extract_claims_fields
+        type: code
+        variables:
+        - value_selector:
+          - '1779135995524'
+          - body
+          value_type: string
+          variable: claim_body
+      height: 52
+      id: '1779138546683'
+      position:
+        x: 1639.1733408930736
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 1639.1733408930736
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: policy_type:disability
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_disability_eligibility_rules
+        type: http-request
+        url: https://sit-capstone.onrender.com/eligibility-rules
+        variables: []
+      height: 138
+      id: '17792013939140'
+      position:
+        x: 2563.9002568322107
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 2563.9002568322107
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            max_tokens: 10301
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 63306ece-a4c5-4c26-894b-217d5cf6d42f
+          role: system
+          text: 'You are an insurance eligibility checker.
+
+
+            Evaluate claim-vs-policy-vs-rule alignment rule by rule.
+
+            Return only structured JSON.
+
+            Use only provided data.
+
+            Do not invent facts.
+
+
+            For each rule:
+
+            - determine pass/fail/unknown
+
+            - provide concise reason
+
+            - cite which input field(s) support the decision
+
+
+            Set mandatory_rules_failed based on failed mandatory rules only.
+
+            Set total_rules_passed as count of passed rules.'
+        - id: a9e01a05-a6cc-4415-b614-7f6236cad0bd
+          role: user
+          text: 'Claim record:
+
+            {{#1779138546683.claim_record_json#}}
+
+
+            Policy record:
+
+            {{#1779208212182.policy_record_json#}}
+
+
+            Eligibility rules:
+
+            {{#17792013939140.body#}}
+
+
+            Run a rule-by-rule eligibility check and return structured output only.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              mandatory_rules_failed:
+                type: number
+              rule_checks:
+                items:
+                  properties:
+                    evidence_fields:
+                      items:
+                        type: string
+                      type: array
+                    is_mandatory:
+                      type: boolean
+                    reason:
+                      type: string
+                    result:
+                      enum:
+                      - PASS
+                      - FAIL
+                      - UNKNOWN
+                      type: string
+                    rule_id:
+                      type: string
+                    rule_name:
+                      type: string
+                  required:
+                  - rule_id
+                  - rule_name
+                  - is_mandatory
+                  - result
+                  - reason
+                  - evidence_fields
+                  type: object
+                type: array
+              total_rules_passed:
+                type: number
+            required:
+            - rule_checks
+            - mandatory_rules_failed
+            - total_rules_passed
+            type: object
+        structured_output_enabled: true
+        title: rule_by_rule_eligibility_check
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779201495095'
+      position:
+        x: 2867.0052626421407
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 2867.0052626421407
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 4d506209-ec99-429b-b516-0e29d2302e6d
+          role: system
+          text: 'You are a policy document analyst for claims assessment.
+
+
+            Identify clauses, exclusions, and documentary requirements relevant to
+            this claim.
+
+            Return only structured JSON.
+
+            Use only provided claim/policy text.
+
+            If uncertain, mark as "uncertain" instead of guessing.'
+        - id: d9f70f00-4dfd-4c5a-b238-b2e47be466f3
+          role: user
+          text: 'Claim record:
+
+            {{#1779138546683.claim_record_json#}}
+
+
+            Policy record:
+
+            {{#1779208212182.policy_record_json#}}
+
+
+            Eligibility rules:
+
+            {{#17792013939140.body#}}
+
+
+            Produce structured policy analysis for claim assessment.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              coverage_risk_flags:
+                items:
+                  type: string
+                type: array
+              potential_exclusions:
+                items:
+                  type: string
+                type: array
+              relevant_clauses:
+                items:
+                  type: string
+                type: array
+              required_documents_or_checks:
+                items:
+                  type: string
+                type: array
+            required:
+            - relevant_clauses
+            - potential_exclusions
+            - required_documents_or_checks
+            - coverage_risk_flags
+            type: object
+        structured_output_enabled: true
+        title: policy_document_analysis
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779201857626'
+      position:
+        x: 3167.9002568322107
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 3167.9002568322107
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: fb22954a-03fb-4e56-9799-b0933358f659
+          role: system
+          text: "You are the final claims assessment synthesizer for disability claims.\n\
+            \nYour task:\nCombine claim data, policy data, rule-check output, and\
+            \ policy-analysis output into one final structured verdict.\n\nCritical\
+            \ constraints:\n1) Return ONLY valid JSON matching the output schema.\n\
+            2) Use only provided facts. Do not invent evidence.\n3) Be decisive using\
+            \ the decision policy below.\n4) Keep recommendation token strict: APPROVE,\
+            \ REJECT, or REFER_FOR_FURTHER_REVIEW only.\n5) Keep confidence_level\
+            \ token strict: LOW, MEDIUM, HIGH only.\n6) Keep coverage_conclusion token\
+            \ strict: CLEARLY_COVERED, NOT_COVERED, UNCLEAR only.\n\nDecision policy\
+            \ (must follow in order):\nA) If mandatory_rules_failed > 0:\n   - recommendation\
+            \ = REJECT\n   - coverage_conclusion = NOT_COVERED\n\nB) Else if all mandatory\
+            \ rules are PASS and there are no blocking unknowns:\n   - recommendation\
+            \ = APPROVE\n   - coverage_conclusion = CLEARLY_COVERED\n\nC) Else:\n\
+            \   - recommendation = REFER_FOR_FURTHER_REVIEW\n   - coverage_conclusion\
+            \ = UNCLEAR\n\nBlocking unknowns (examples):\n- Mandatory rule result\
+            \ is UNKNOWN\n- Required evidence for claim category is missing (e.g.,\
+            \ accidental_death without police/coroner report)\n- Core in-force determination\
+            \ at relevant event date cannot be established from provided data\n\n\
+            Only treat UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\n\
+            Do not create new blocking unknowns from narrative policy text inconsistencies\
+            \ unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed\
+            \ == 0 and no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT\
+            \ only when at least one mandatory rule is FAIL.\nDo not REJECT on UNKNOWN;\
+            \ use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n- HIGH: strong\
+            \ evidence, no material contradictions, no blocking unknowns\n- MEDIUM:\
+            \ mostly sufficient evidence with limited uncertainty\n- LOW: material\
+            \ uncertainty, contradictions, or major missing evidence\n\nOutput quality\
+            \ rules:\n- key_rationale must be concise and operational.\n- key_risks\
+            \ should be short bullet-like strings.\n- recommended_next_actions should\
+            \ be concrete, executable actions.\n- Do NOT place long rationale text\
+            \ inside enum/token fields."
+        - id: 7eade8ec-0139-4b40-9997-b9888b4d4177
+          role: user
+          text: 'Claim record:
+
+            {{#1779138546683.claim_record_json#}}
+
+
+            Policy record:
+
+            {{#1779208212182.policy_record_json#}}
+
+
+            Rule check result:
+
+            {{#1779201495095.structured_output#}}
+
+
+            Policy analysis:
+
+            {{#1779201857626.structured_output#}}
+
+
+            Produce the final structured verdict.
+
+
+            Additional instructions:
+
+            - Treat rule-check output as primary for pass/fail counts.
+
+            - Use mandatory_rules_failed from rule-check unless clearly inconsistent.
+
+            - If recommendation is APPROVE, explain briefly why no blocking unknowns
+            remain.
+
+            - If recommendation is REJECT, identify which mandatory failure(s) drive
+            rejection.
+
+            - If recommendation is REFER_FOR_FURTHER_REVIEW, list the minimum missing
+            items needed to decide.
+
+            Return JSON only.'
+        selected: false
+        structured_output:
+          schema:
+            additionalProperties: false
+            properties:
+              confidence_level:
+                enum:
+                - LOW
+                - MEDIUM
+                - HIGH
+                type: string
+              coverage_conclusion:
+                enum:
+                - CLEARLY_COVERED
+                - NOT_COVERED
+                - UNCLEAR
+                type: string
+              key_rationale:
+                type: string
+              key_risks:
+                items:
+                  type: string
+                type: array
+              mandatory_rules_failed:
+                type: number
+              recommendation:
+                enum:
+                - APPROVE
+                - REJECT
+                - REFER_FOR_FURTHER_REVIEW
+                type: string
+              recommended_next_actions:
+                items:
+                  type: string
+                type: array
+              total_rules_passed:
+                type: number
+            required:
+            - recommendation
+            - confidence_level
+            - coverage_conclusion
+            - mandatory_rules_failed
+            - total_rules_passed
+            - key_rationale
+            - key_risks
+            - recommended_next_actions
+            type: object
+        structured_output_enabled: true
+        title: synthesize_final_verdict
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779202255611'
+      position:
+        x: 3469.9002568322107
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 3469.9002568322107
+        y: 891.4985450917181
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 12add462-35a1-4218-bd34-8bd202789e25
+          role: system
+          text: 'You are a response-focus extractor for assessment reporting.
+
+
+            Decide which report sections and detail level the user wants.
+
+            Return only structured output.
+
+            If unclear, default detail_level="standard" and requested_sections=["verdict","rule_failures","risk_flags","next_actions"].'
+        - id: 924a53ef-2d1d-4224-85ac-b32c78e106ab
+          role: user
+          text: 'User query:
+
+            {{#1778956618758.query#}}'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              detail_level:
+                enum:
+                - brief
+                - standard
+                - full
+                type: string
+              requested_sections:
+                items:
+                  enum:
+                  - verdict
+                  - confidence
+                  - coverage_conclusion
+                  - rule_breakdown
+                  - rule_failures
+                  - policy_clause_signals
+                  - risk_flags
+                  - next_actions
+                  - audit_notes
+                  type: string
+                type: array
+            required:
+            - requested_sections
+            - detail_level
+            type: object
+        structured_output_enabled: true
+        title: extract_response_focus_assess
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1779204035193'
+      position:
+        x: 3774.194639337831
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 3774.194639337831
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1780337744907'
+          - merged_json
+          value_type: string
+          variable: final_report
+        selected: false
+        title: final_report_answer
+        type: end
+      height: 88
+      id: '1779204961211'
+      position:
+        x: 5873.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 5873.90025683221
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and\
+          \ v:\n        return v[0]\n    if isinstance(v, dict):\n        return v\n\
+          \    if isinstance(v, str):\n        try:\n            obj = json.loads(v)\n\
+          \            if isinstance(obj, list) and obj:\n                return obj[0]\n\
+          \            if isinstance(obj, dict):\n                return obj\n   \
+          \     except Exception:\n            return {}\n    return {}\n\ndef _to_str(v):\n\
+          \    return \"\" if v is None else str(v)\n\ndef main(policy_body):\n  \
+          \  p = _first_record(policy_body)\n    return {\n        \"policy_id_from_data\"\
+          : _to_str(p.get(\"policy_id\")),\n        \"policy_status\": _to_str(p.get(\"\
+          status\")),\n        \"policy_type\": _to_str(p.get(\"policy_type\")),\n\
+          \        \"sum_assured\": _to_str(p.get(\"sum_assured\")),\n        \"start_date\"\
+          : _to_str(p.get(\"start_date\")),\n        \"end_date\": _to_str(p.get(\"\
+          end_date\")),\n        \"policy_text\": _to_str(p.get(\"policy_text\")),\n\
+          \        \"policy_summary\": _to_str(p.get(\"policy_summary\")),\n     \
+          \   \"policy_record_json\": json.dumps(p, ensure_ascii=False)\n    }"
+        code_language: python3
+        outputs:
+          end_date:
+            children: null
+            type: string
+          policy_id_from_data:
+            children: null
+            type: string
+          policy_record_json:
+            children: null
+            type: string
+          policy_status:
+            children: null
+            type: string
+          policy_summary:
+            children: null
+            type: string
+          policy_text:
+            children: null
+            type: string
+          policy_type:
+            children: null
+            type: string
+          start_date:
+            children: null
+            type: string
+          sum_assured:
+            children: null
+            type: string
+        selected: false
+        title: extract_policy_fields
+        type: code
+        variables:
+        - value_selector:
+          - '17791384433540'
+          - body
+          value_type: string
+          variable: policy_body
+      height: 52
+      id: '1779208212182'
+      position:
+        x: 2263.9002568322107
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 2263.9002568322107
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 2ab00e0f-f57f-4dc1-950e-66b07a6e0156
+          role: system
+          text: 'You are an internal claims assessment report writer.
+
+
+            Write a concise operational report using the final verdict and focus instructions.
+
+            Use only provided facts.
+
+            No hallucinations.
+
+            Keep it decision-ready for claims operations and audit.'
+        - id: de17317e-3282-4b70-a1bd-f2ba666eb22a
+          role: user
+          text: 'User query:
+
+            {{#1778956618758.query#}}
+
+
+            Focus:
+
+            {{#1779204035193.structured_output#}}
+
+
+            Claim record:
+
+            {{#1779138546683.claim_record_json#}}
+
+
+            Policy record:
+
+            {{#1779208212182.policy_record_json#}}
+
+
+            Eligibility rules:
+
+            {{#17792013939140.body#}}
+
+
+            Rule check result:
+
+            {{#1779201495095.structured_output#}}
+
+
+            Policy analysis:
+
+            {{#1779201857626.structured_output#}}
+
+
+            Final verdict:
+
+            {{#1779202255611.structured_output#}}
+
+
+            Write the final assessment report in plain text.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              audit_notes:
+                type: string
+              executive_summary:
+                type: string
+              next_actions:
+                items:
+                  type: string
+                type: array
+              risk_flags:
+                items:
+                  type: string
+                type: array
+              rule_summary:
+                type: string
+              title:
+                type: string
+              verdict:
+                properties:
+                  confidence_level:
+                    enum:
+                    - LOW
+                    - MEDIUM
+                    - HIGH
+                    type: string
+                  coverage_conclusion:
+                    enum:
+                    - CLEARLY_COVERED
+                    - NOT_COVERED
+                    - UNCLEAR
+                    type: string
+                  recommendation:
+                    enum:
+                    - APPROVE
+                    - REJECT
+                    - REFER_FOR_FURTHER_REVIEW
+                    type: string
+                required:
+                - recommendation
+                - confidence_level
+                - coverage_conclusion
+                type: object
+            required:
+            - title
+            - executive_summary
+            - verdict
+            - rule_summary
+            - risk_flags
+            - next_actions
+            - audit_notes
+            type: object
+        structured_output_enabled: true
+        title: format_final_report
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780337740183'
+      position:
+        x: 4073.9002568322107
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 4073.9002568322107
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n     \
+          \   return v\n    if isinstance(v, str):\n        try:\n            return\
+          \ json.loads(v)\n        except Exception:\n            return v\n    return\
+          \ v\n\ndef main(answer, suggestion_context):\n    merged = {\n        \"\
+          answer\": answer if isinstance(answer, str) else _to_obj(answer),\n    \
+          \    \"suggestion_context\": _to_obj(suggestion_context)\n    }\n    return\
+          \ {\n        \"merged_json\": json.dumps(merged, ensure_ascii=False)\n \
+          \   }"
+        code_language: python3
+        outputs:
+          merged_json:
+            children: null
+            type: string
+        selected: false
+        title: merge_answer_and_context_assessment
+        type: code
+        variables:
+        - value_selector:
+          - '1780337740183'
+          - structured_output
+          value_type: object
+          variable: answer
+        - value_selector:
+          - '1781469231691'
+          - structured_output
+          value_type: object
+          variable: suggestion_context
+      height: 52
+      id: '1780337744907'
+      position:
+        x: 5573.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 5573.90025683221
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
+          \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
+          \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
+          \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
+          \    return {\"resolved_claim_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_claim_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_claim_id_for_assess
+        type: code
+        variables:
+        - value_selector:
+          - '1778956618758'
+          - claim_id
+          value_type: string
+          variable: start_claim_id
+        - value_selector:
+          - '1778956618758'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1780461414069'
+      position:
+        x: 887.3679059224817
+        y: 916.2793396033829
+      positionAbsolute:
+        x: 887.3679059224817
+        y: 916.2793396033829
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 8363ff8d-f407-45ed-b6e9-5f66e9cf515b
+          role: system
+          text: 'You are an internal quality judge for assessment reports.
+
+
+            Score report quality from 1.0 to 5.0 on:
+
+            - completeness
+
+            - consistency
+
+            - hallucination risk (higher = lower risk / safer)
+
+            - clarity
+
+
+            Return only structured JSON.'
+        - id: c2ec89e9-7715-4b7b-abbe-ec9bd2021009
+          role: user
+          text: 'Final report:
+
+            {{#1780337740183.structured_output#}}
+
+
+            Verdict payload:
+
+            {{#1779202255611.structured_output#}}
+
+
+            Provide quality scores and short judge comments.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              judge_clarity_score:
+                type: number
+              judge_comments:
+                type: string
+              judge_completeness_score:
+                type: number
+              judge_consistency_score:
+                type: number
+              judge_hallucination_risk_score:
+                type: number
+              judge_overall_score:
+                type: number
+            required:
+            - judge_completeness_score
+            - judge_consistency_score
+            - judge_hallucination_risk_score
+            - judge_clarity_score
+            - judge_overall_score
+            - judge_comments
+            type: object
+        structured_output_enabled: true
+        title: llm_judge
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1781466482947'
+      position:
+        x: 4373.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 4373.90025683221
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def _to_int_str(v, default=\"0\"):\n    try:\n        return str(int(v))\n\
+          \    except Exception:\n        return default\n\ndef _to_float_str(v, default=\"\
+          \"):\n    try:\n        return str(float(v))\n    except Exception:\n  \
+          \      return default\n\ndef _to_str(v, default=\"\"):\n    return default\
+          \ if v is None else str(v)\n\ndef main(\n    claim_id,\n    verdict,\n \
+          \   judge,\n    workflow_type=\"disability_assess_claim\",\n    model_version=\"\
+          gpt-5.2\",\n    prompt_version=\"disability_assess_claim_v1.0\",\n    mlflow_run_id=\"\
+          \"\n):\n    verdict = verdict or {}\n    judge = judge or {}\n\n    return\
+          \ {\n        \"claim_id\": _to_str(claim_id, \"\"),\n        \"workflow_type\"\
+          : _to_str(workflow_type, \"disability_assess_claim\"),\n        \"recommendation\"\
+          : _to_str(verdict.get(\"recommendation\", \"\"), \"\"),\n        \"confidence_level\"\
+          : _to_str(verdict.get(\"confidence_level\", \"\"), \"\"),\n        \"mandatory_rules_failed\"\
+          : _to_int_str(verdict.get(\"mandatory_rules_failed\", 0), \"0\"),\n    \
+          \    \"total_rules_passed\": _to_int_str(verdict.get(\"total_rules_passed\"\
+          , 0), \"0\"),\n        \"coverage_conclusion\": _to_str(verdict.get(\"coverage_conclusion\"\
+          , \"\"), \"\"),\n        \"model_version\": _to_str(model_version, \"gpt-5.2\"\
+          ),\n        \"prompt_version\": _to_str(prompt_version, \"disability_assess_claim_v1.0\"\
+          ),\n        \"mlflow_run_id\": _to_str(mlflow_run_id, \"\"),  # avoid None\
+          \ for String output\n        \"judge_completeness_score\": _to_float_str(judge.get(\"\
+          judge_completeness_score\"), \"\"),\n        \"judge_consistency_score\"\
+          : _to_float_str(judge.get(\"judge_consistency_score\"), \"\"),\n       \
+          \ \"judge_hallucination_risk_score\": _to_float_str(judge.get(\"judge_hallucination_risk_score\"\
+          ), \"\"),\n        \"judge_clarity_score\": _to_float_str(judge.get(\"judge_clarity_score\"\
+          ), \"\"),\n        \"judge_overall_score\": _to_float_str(judge.get(\"judge_overall_score\"\
+          ), \"\")\n    }"
+        code_language: python3
+        outputs:
+          claim_id:
+            children: null
+            type: string
+          confidence_level:
+            children: null
+            type: string
+          coverage_conclusion:
+            children: null
+            type: string
+          judge_clarity_score:
+            children: null
+            type: string
+          judge_completeness_score:
+            children: null
+            type: string
+          judge_consistency_score:
+            children: null
+            type: string
+          judge_hallucination_risk_score:
+            children: null
+            type: string
+          judge_overall_score:
+            children: null
+            type: string
+          mandatory_rules_failed:
+            children: null
+            type: string
+          mlflow_run_id:
+            children: null
+            type: string
+          model_version:
+            children: null
+            type: string
+          prompt_version:
+            children: null
+            type: string
+          recommendation:
+            children: null
+            type: string
+          total_rules_passed:
+            children: null
+            type: string
+          workflow_type:
+            children: null
+            type: string
+        selected: false
+        title: prepare_assessment_log_payload
+        type: code
+        variables:
+        - value_selector:
+          - '1779138546683'
+          - claim_id_from_data
+          value_type: string
+          variable: claim_id
+        - value_selector:
+          - '1779202255611'
+          - structured_output
+          value_type: object
+          variable: verdict
+        - value_selector:
+          - '1781466482947'
+          - structured_output
+          value_type: object
+          variable: judge
+      height: 52
+      id: '1781468605100'
+      position:
+        x: 4673.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 4673.90025683221
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: key-value-226
+            key: ''
+            type: text
+            value: "{\n  \"claim_id\": {{#1781468605100.claim_id#}},\n  \"workflow_type\"\
+              : {{#1781468605100.workflow_type#}},\n  \"recommendation\": {{#1781468605100.recommendation#}},\n\
+              \  \"confidence_level\": {{#1781468605100.confidence_level#}},\n  \"\
+              mandatory_rules_failed\": {{#1781468605100.mandatory_rules_failed#}},\n\
+              \  \"total_rules_passed\": {{#1781468605100.total_rules_passed#}},\n\
+              \  \"coverage_conclusion\": {{#1781468605100.coverage_conclusion#}},\n\
+              \  \"model_version\": {{#1781468605100.model_version#}},\n  \"prompt_version\"\
+              : {{#1781468605100.prompt_version#}},\n  \"mlflow_run_id\": {{#1781468605100.mlflow_run_id#}},\n\
+              \  \"judge_completeness_score\": {{#1781468605100.judge_completeness_score#}},\n\
+              \  \"judge_consistency_score\": {{#1781468605100.judge_consistency_score#}},\n\
+              \  \"judge_hallucination_risk_score\": {{#1781468605100.judge_hallucination_risk_score#}},\n\
+              \  \"judge_clarity_score\": {{#1781468605100.judge_clarity_score#}},\n\
+              \  \"judge_overall_score\": {{#1781468605100.judge_overall_score#}}\n\
+              }"
+          type: json
+        headers: Content-Type:application/json
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: write_assessment_log
+        type: http-request
+        url: https://sit-capstone.onrender.com/assessment-logs
+        variables: []
+      height: 138
+      id: '1781468824586'
+      position:
+        x: 4973.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 4973.90025683221
+        y: 891.4985450917181
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 6bbde204-0ac9-4e8e-aeef-7e90d9ef29ae
+          role: system
+          text: "You are a machine-context generator for downstream follow-up orchestration\
+            \ in a disability-claim assessment workflow.\n\nTask:\nGenerate a compact suggestion_context\
+            \ object from:\n- final verdict\n- final report\n- judge output\n\nRules:\n\
+            1) Return ONLY valid JSON matching schema.\n2) Do NOT generate explicit\
+            \ follow-up questions.\n3) Use only facts from inputs.\n4) path_type must\
+            \ be \"ASSESS_CLAIM\".\n5) outcome_type mapping:\n   - recommendation\
+            \ APPROVE -> APPROVE\n   - recommendation REJECT -> REJECT\n   - recommendation\
+            \ REFER_FOR_FURTHER_REVIEW -> REFER_FOR_FURTHER_REVIEW\n   - otherwise\
+            \ -> UNKNOWN\n6) entities.recommendation must be token-only:\n   APPROVE\
+            \ | REJECT | REFER_FOR_FURTHER_REVIEW | UNKNOWN\n   (No extra prose, no\
+            \ confidence text, no rationale text.)\n7) Keep arrays concise and operational:\n\
+            \   - follow_up_themes: 3-6 short topic labels\n   - missing_information:\
+            \ only true missing items\n   - next_decision_points: 2-5 concrete actions\n\
+            8) If policy_id is unavailable, set it to empty string.\n\nOutput must\
+            \ be concise, machine-friendly, and deterministic."
+        - id: 3dd79ac2-eea4-4a62-baf0-3cdc8ce9aaca
+          role: user
+          text: 'User query:
+
+            {{#1778956618758.query#}}
+
+
+            Claim ID:
+
+            {{#1779138546683.claim_id_from_data#}}
+
+
+            Policy ID:
+
+            {{#1779208212182.policy_id_from_data#}}
+
+
+            Final verdict:
+
+            {{#1779202255611.structured_output#}}
+
+
+            Judge:
+
+            {{#1781466482947.structured_output#}}
+
+
+            Final report:
+
+            {{#1780337740183.structured_output#}}
+
+
+            Important:
+
+            - Set entities.recommendation to verdict.recommendation token only.
+
+            - Do not copy long rationale into entities.
+
+            - Keep follow_up_themes as short labels, not full sentences.
+
+            Return JSON only.'
+        selected: false
+        structured_output:
+          schema:
+            additionalProperties: false
+            properties:
+              entities:
+                additionalProperties: false
+                properties:
+                  claim_id:
+                    type: string
+                  policy_id:
+                    type: string
+                  recommendation:
+                    enum:
+                    - APPROVE
+                    - REJECT
+                    - REFER_FOR_FURTHER_REVIEW
+                    - UNKNOWN
+                    type: string
+                required:
+                - claim_id
+                - policy_id
+                - recommendation
+                type: object
+              follow_up_themes:
+                items:
+                  type: string
+                maxItems: 6
+                minItems: 3
+                type: array
+              missing_information:
+                items:
+                  type: string
+                type: array
+              next_decision_points:
+                items:
+                  type: string
+                maxItems: 5
+                minItems: 2
+                type: array
+              outcome_type:
+                enum:
+                - APPROVE
+                - REJECT
+                - REFER_FOR_FURTHER_REVIEW
+                - UNKNOWN
+                type: string
+              path_type:
+                enum:
+                - ASSESS_CLAIM
+                type: string
+            required:
+            - path_type
+            - outcome_type
+            - entities
+            - follow_up_themes
+            - missing_information
+            - next_decision_points
+            type: object
+        structured_output_enabled: true
+        title: build_assessment_suggestion_context
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1781469231691'
+      position:
+        x: 5273.90025683221
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 5273.90025683221
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -4413.753109563258
+      y: -338.50600689967644
+      zoom: 0.8450104076026902
+  rag_pipeline_variables: []
