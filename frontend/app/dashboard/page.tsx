@@ -7,6 +7,12 @@ import {
 } from 'recharts';
 import { getAssessmentLogs, type AssessmentLog } from '@/lib/mcp';
 
+function toPercent(score: number): number {
+  if (score <= 1) return Math.round(score * 100);
+  if (score <= 5) return Math.round((score / 5) * 100);
+  return Math.min(100, Math.round(score));
+}
+
 const COLOURS = {
   APPROVE: '#22c55e',
   REJECT: '#ef4444',
@@ -49,8 +55,8 @@ export default function DashboardPage() {
 
   const totalAssessments = logs.length;
   const approveRate = (logs.filter(l => l.recommendation === 'APPROVE').length / totalAssessments * 100).toFixed(0);
-  const avgJudge = (logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / totalAssessments * 100).toFixed(0);
-  const avgHallucinationRisk = (logs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / totalAssessments * 100).toFixed(0);
+  const avgJudge = toPercent(logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / totalAssessments);
+  const avgHallucinationRisk = toPercent(logs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / totalAssessments);
 
   // Recommendation distribution
   const recCounts: Record<string, number> = {};
@@ -69,9 +75,9 @@ export default function DashboardPage() {
     .slice(-30)
     .map((l, i) => ({
       i: i + 1,
-      overall: +(l.judge_overall_score * 100).toFixed(0),
-      completeness: +(l.judge_completeness_score * 100).toFixed(0),
-      hallucination: +(l.judge_hallucination_risk_score * 100).toFixed(0),
+      overall: toPercent(l.judge_overall_score),
+        completeness: toPercent(l.judge_completeness_score),
+        hallucination: toPercent(l.judge_hallucination_risk_score),
     }));
 
   // Confidence distribution

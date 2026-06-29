@@ -7,8 +7,18 @@ const WORKFLOW_TYPES = ['', 'life', 'health', 'critical_illness', 'disability'];
 const RECOMMENDATIONS = ['', 'APPROVE', 'REJECT', 'REFER_FOR_FURTHER_REVIEW', 'PENDING'];
 const CONFIDENCE_LEVELS = ['', 'high', 'medium', 'low'];
 
+/**
+ * Normalize a judge score to 0-100 regardless of the storage scale.
+ * The LLM judge stores scores on a 0-5 scale; treat anything > 1 as 0-5.
+ */
+function toPercent(score: number): number {
+  if (score <= 1) return Math.round(score * 100);       // 0-1 scale
+  if (score <= 5) return Math.round((score / 5) * 100); // 0-5 scale
+  return Math.min(100, Math.round(score));               // already a percentage
+}
+
 function ScoreBadge({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
+  const pct = toPercent(score);
   const colour =
     pct >= 80 ? 'bg-green-100 text-green-800' :
     pct >= 60 ? 'bg-yellow-100 text-yellow-800' :
@@ -120,7 +130,7 @@ export default function AuditPage() {
             { label: 'Rejected', value: logs.filter(l => l.recommendation === 'REJECT').length },
             {
               label: 'Avg Judge Score',
-              value: (logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / logs.length * 100).toFixed(0) + '%',
+              value: toPercent(logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / logs.length) + '%',
             },
           ].map(stat => (
             <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-4">
