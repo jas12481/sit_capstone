@@ -16,6 +16,103 @@ import {
 
 type Tab = 'pending' | 'history' | 'nodes';
 
+// ── Node content parser & viewer ─────────────────────────────────────────────
+
+function parseLlmContent(content: string) {
+  const sections: Record<string, string> = {};
+  // Split on [tag] markers at line start
+  const parts = content.split(/\n(?=\[(?:model|system|user|schema)\])/);
+  for (const part of parts) {
+    const m = part.match(/^\[(\w+)\]\n?([\s\S]*)/);
+    if (m) sections[m[1]] = m[2].trim();
+  }
+  return sections;
+}
+
+function NodeContentViewer({ node }: { node: WorkflowNode }) {
+  const { node_type, node_content } = node;
+
+  if (node_type === 'code') {
+    return (
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Python Code</p>
+        <pre className="bg-gray-950 text-green-300 text-xs font-mono rounded-lg p-4 overflow-x-auto max-h-80 overflow-y-auto leading-5 whitespace-pre">
+          {node_content}
+        </pre>
+      </div>
+    );
+  }
+
+  if (node_type === 'llm') {
+    const sections = parseLlmContent(node_content);
+    return (
+      <div className="space-y-3">
+        {sections.model && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Model</p>
+            <p className="text-xs font-mono text-gray-600 bg-gray-50 rounded px-3 py-1.5">{sections.model}</p>
+          </div>
+        )}
+        {sections.system && (
+          <div>
+            <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">System Prompt</p>
+            <pre className="bg-purple-50 border border-purple-100 text-xs text-gray-800 rounded-lg px-3 py-2.5 whitespace-pre-wrap max-h-60 overflow-y-auto leading-5">{sections.system}</pre>
+          </div>
+        )}
+        {sections.user && (
+          <div>
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">User Prompt</p>
+            <pre className="bg-blue-50 border border-blue-100 text-xs text-gray-800 rounded-lg px-3 py-2.5 whitespace-pre-wrap max-h-48 overflow-y-auto leading-5">{sections.user}</pre>
+          </div>
+        )}
+        {sections.schema && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Output Schema</p>
+            <pre className="bg-gray-50 text-xs font-mono text-gray-600 rounded-lg px-3 py-2 max-h-40 overflow-y-auto">{sections.schema}</pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (node_type === 'agent') {
+    let parsed: { strategy?: string; tools?: { tool_name: string; provider: string; enabled: boolean }[] } = {};
+    try { parsed = JSON.parse(node_content); } catch { /* raw fallback */ }
+    return (
+      <div className="space-y-3">
+        {parsed.strategy && (
+          <p className="text-xs text-gray-600">
+            <span className="font-semibold text-gray-500">Strategy:</span> {parsed.strategy}
+          </p>
+        )}
+        {parsed.tools && parsed.tools.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">Tools ({parsed.tools.length})</p>
+            <div className="space-y-1.5">
+              {parsed.tools.map((t, i) => (
+                <div key={i} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                  <span className="text-xs font-medium text-gray-800">{t.tool_name}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-400 font-mono">{t.provider}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${t.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                      {t.enabled ? 'enabled' : 'disabled'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {!parsed.tools && (
+          <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">{node_content}</pre>
+        )}
+      </div>
+    );
+  }
+
+  return <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap max-h-60 overflow-y-auto">{node_content}</pre>;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const s = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -183,6 +280,69 @@ function ApprovalCard({
           {showForm && <ApprovalForm approval={approval} onDone={onDone} />}
         </div>
       )}
+    </div>
+  );
+}
+
+function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  function toggle(id: string) {
+    setExpanded(prev => prev === id ? null : id);
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-100 bg-gray-50">
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Workflow</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Node</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Version</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Hash</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Committed</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">By</th>
+            <th className="px-4 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {nodes.map(n => (
+            <>
+              <tr
+                key={n.node_id}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => toggle(n.node_id)}
+              >
+                <td className="px-4 py-2.5 text-gray-700 font-medium text-xs">{n.workflow_name}</td>
+                <td className="px-4 py-2.5 text-gray-800 text-xs font-medium">{n.node_name}</td>
+                <td className="px-4 py-2.5"><NodeTypeBadge type={n.node_type} /></td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{n.workflow_version || '—'}</td>
+                <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{n.content_hash?.slice(0, 10)}…</td>
+                <td className="px-4 py-2.5 text-gray-400 text-xs">
+                  {n.committed_at ? new Date(n.committed_at).toLocaleString() : '—'}
+                </td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs">{n.committed_by || '—'}</td>
+                <td className="px-4 py-2.5 text-gray-400">
+                  <svg
+                    className={`w-4 h-4 transition-transform ${expanded === n.node_id ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </td>
+              </tr>
+              {expanded === n.node_id && (
+                <tr key={`${n.node_id}-exp`} className="bg-gray-50">
+                  <td colSpan={8} className="px-6 py-4">
+                    <NodeContentViewer node={n} />
+                  </td>
+                </tr>
+              )}
+            </>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -422,55 +582,52 @@ export default function DslPage() {
         </div>
       )}
 
-      {!loading && tab === 'nodes' && (
-        <div className="space-y-4">
-          <div className="flex gap-3">
-            <input
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
-              placeholder="Filter by workflow name…"
-              value={workflowFilter}
-              onChange={e => setWorkflowFilter(e.target.value)}
-            />
-          </div>
+      {!loading && tab === 'nodes' && (() => {
+        // Derive unique workflow names for dropdown
+        const workflowNames = nodes
+          .map(n => n.workflow_name)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .sort();
 
-          {nodes.length === 0 ? (
-            <div className="text-center py-16 text-gray-400 text-sm">
-              No nodes stored. Run <code className="font-mono bg-gray-100 px-1 rounded">python -m dsl_manager init</code> to baseline a workflow.
+        const filtered = workflowFilter
+          ? nodes.filter(n => n.workflow_name === workflowFilter)
+          : nodes;
+
+        return (
+          <div className="space-y-4">
+            <div className="flex gap-3 items-center">
+              <select
+                value={workflowFilter}
+                onChange={e => setWorkflowFilter(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-72"
+              >
+                <option value="">All workflows ({nodes.length} nodes)</option>
+                {workflowNames.map(wf => (
+                  <option key={wf} value={wf}>
+                    {wf} ({nodes.filter(n => n.workflow_name === wf).length} nodes)
+                  </option>
+                ))}
+              </select>
+              {workflowFilter && (
+                <button
+                  onClick={() => setWorkflowFilter('')}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Clear
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Workflow</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Node</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Version</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Hash</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Committed</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {nodes.map(n => (
-                    <tr key={n.node_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 text-gray-700 font-medium text-xs">{n.workflow_name}</td>
-                      <td className="px-4 py-2.5 text-gray-600 text-xs">{n.node_name}</td>
-                      <td className="px-4 py-2.5"><NodeTypeBadge type={n.node_type} /></td>
-                      <td className="px-4 py-2.5 text-gray-500 text-xs">{n.workflow_version || '—'}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{n.content_hash?.slice(0, 10)}…</td>
-                      <td className="px-4 py-2.5 text-gray-400 text-xs">
-                        {n.committed_at ? new Date(n.committed_at).toLocaleString() : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-500 text-xs">{n.committed_by || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+
+            {filtered.length === 0 ? (
+              <div className="text-center py-16 text-gray-400 text-sm">
+                No nodes stored. Click <strong>Scan dify-data/</strong> above to baseline all workflows.
+              </div>
+            ) : (
+              <NodeTable nodes={filtered} />
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
