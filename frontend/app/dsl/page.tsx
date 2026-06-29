@@ -61,14 +61,16 @@ function NodeContentViewer({ node }: { node: WorkflowNode }) {
         )}
         {sections.user && (
           <div>
-            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">User Prompt</p>
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Query</p>
             <pre className="bg-blue-50 border border-blue-100 text-xs text-gray-800 rounded-lg px-3 py-2.5 whitespace-pre-wrap max-h-48 overflow-y-auto leading-5">{sections.user}</pre>
           </div>
         )}
         {sections.schema && (
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Output Schema</p>
-            <pre className="bg-gray-50 text-xs font-mono text-gray-600 rounded-lg px-3 py-2 max-h-40 overflow-y-auto">{sections.schema}</pre>
+            <pre className="bg-gray-50 border border-gray-200 text-xs font-mono text-gray-600 rounded-lg px-3 py-2.5 whitespace-pre overflow-x-auto max-h-60 overflow-y-auto leading-5">
+              {(() => { try { return JSON.stringify(JSON.parse(sections.schema), null, 2); } catch { return sections.schema; } })()}
+            </pre>
           </div>
         )}
       </div>
@@ -76,24 +78,41 @@ function NodeContentViewer({ node }: { node: WorkflowNode }) {
   }
 
   if (node_type === 'agent') {
-    let parsed: { strategy?: string; tools?: { tool_name: string; provider: string; enabled: boolean }[] } = {};
+    let parsed: {
+      strategy?: string;
+      model?: string;
+      instruction?: string;
+      query?: string;
+      tools?: { tool_name: string; provider: string; enabled: boolean }[];
+    } = {};
     try { parsed = JSON.parse(node_content); } catch { /* raw fallback */ }
     return (
       <div className="space-y-3">
-        {parsed.strategy && (
-          <p className="text-xs text-gray-600">
-            <span className="font-semibold text-gray-500">Strategy:</span> {parsed.strategy}
-          </p>
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          {parsed.strategy && <span><span className="font-semibold">Strategy:</span> {parsed.strategy}</span>}
+          {parsed.model && <span><span className="font-semibold">Model:</span> {parsed.model}</span>}
+        </div>
+        {parsed.instruction && (
+          <div>
+            <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-1">Instruction</p>
+            <pre className="bg-orange-50 border border-orange-100 text-xs text-gray-800 rounded-lg px-3 py-2.5 whitespace-pre-wrap max-h-60 overflow-y-auto leading-5">{parsed.instruction}</pre>
+          </div>
+        )}
+        {parsed.query && (
+          <div>
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Query</p>
+            <pre className="bg-blue-50 border border-blue-100 text-xs text-gray-800 rounded-lg px-3 py-2.5 whitespace-pre-wrap max-h-40 overflow-y-auto leading-5">{parsed.query}</pre>
+          </div>
         )}
         {parsed.tools && parsed.tools.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">Tools ({parsed.tools.length})</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tools ({parsed.tools.length})</p>
             <div className="space-y-1.5">
               {parsed.tools.map((t, i) => (
-                <div key={i} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                <div key={i} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                   <span className="text-xs font-medium text-gray-800">{t.tool_name}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 font-mono">{t.provider}</span>
+                    <span className="text-xs text-gray-400 font-mono truncate max-w-[180px]">{t.provider}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${t.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
                       {t.enabled ? 'enabled' : 'disabled'}
                     </span>
@@ -103,7 +122,7 @@ function NodeContentViewer({ node }: { node: WorkflowNode }) {
             </div>
           </div>
         )}
-        {!parsed.tools && (
+        {!parsed.strategy && !parsed.instruction && (
           <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">{node_content}</pre>
         )}
       </div>

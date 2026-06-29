@@ -342,16 +342,28 @@ def _extract_code_content(data: dict) -> str:
 
 
 def _extract_agent_content(data: dict) -> str:
-    tools = data.get("tools", [])
+    # Dify agent nodes store instruction/query/tools inside agent_parameters
+    params = data.get("agent_parameters", {})
+    instruction = params.get("instruction", {}).get("value", "")
+    query_tpl = params.get("query", {}).get("value", "")
+    tools_raw = params.get("tools", {}).get("value", []) or data.get("tools", [])
     simplified = [
         {
-            "tool_name": t.get("tool_name") or t.get("tool_label", ""),
+            "tool_name": t.get("tool_name") or t.get("provider_show_name") or t.get("tool_label", ""),
             "provider": t.get("provider_name", ""),
             "enabled": t.get("enabled", True),
         }
-        for t in tools
+        for t in tools_raw
     ]
-    return json.dumps({"strategy": data.get("agent_strategy_name", ""), "tools": simplified}, indent=2)
+    model_val = params.get("model", {}).get("value", {})
+    model_name = model_val.get("model", "") if isinstance(model_val, dict) else ""
+    return json.dumps({
+        "strategy": data.get("agent_strategy_name", ""),
+        "model": model_name,
+        "instruction": instruction,
+        "query": query_tpl,
+        "tools": simplified,
+    }, indent=2)
 
 
 _EXTRACTORS = {"llm": _extract_llm_content, "code": _extract_code_content, "agent": _extract_agent_content}
