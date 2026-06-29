@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type Message = {
   id: string;
@@ -127,7 +129,48 @@ export default function ChatPage() {
                 ? 'bg-brand-500 text-white'
                 : 'bg-white border border-gray-200 text-gray-900'
             }`}>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              <div className="text-sm leading-relaxed">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    table: ({ children }) => (
+                      <div className="overflow-x-auto my-2">
+                        <table className="min-w-full border-collapse text-xs">{children}</table>
+                      </div>
+                    ),
+                    thead: ({ children }) => (
+                      <thead className={msg.role === 'user' ? 'bg-brand-600' : 'bg-gray-100'}>{children}</thead>
+                    ),
+                    th: ({ children }) => (
+                      <th className={`px-3 py-2 text-left font-semibold border ${
+                        msg.role === 'user' ? 'border-brand-400 text-white' : 'border-gray-200 text-gray-700'
+                      }`}>{children}</th>
+                    ),
+                    td: ({ children }) => (
+                      <td className={`px-3 py-2 border ${
+                        msg.role === 'user' ? 'border-brand-400' : 'border-gray-200 text-gray-800'
+                      }`}>{children}</td>
+                    ),
+                    tr: ({ children }) => (
+                      <tr className={msg.role === 'assistant' ? 'even:bg-gray-50' : ''}>{children}</tr>
+                    ),
+                    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol>,
+                    li: ({ children }) => <li className="leading-snug">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                    h2: ({ children }) => <h2 className="font-semibold text-sm mt-3 mb-1 first:mt-0">{children}</h2>,
+                    h3: ({ children }) => <h3 className="font-medium text-sm mt-2 mb-1 first:mt-0">{children}</h3>,
+                    code: ({ children }) => (
+                      <code className={`px-1 py-0.5 rounded text-xs font-mono ${
+                        msg.role === 'user' ? 'bg-brand-400' : 'bg-gray-100 text-gray-800'
+                      }`}>{children}</code>
+                    ),
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
               <div className={`flex items-center justify-between mt-1.5 gap-4 ${
                 msg.role === 'user' ? 'text-brand-100' : 'text-gray-400'
               }`}>
