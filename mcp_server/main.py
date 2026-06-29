@@ -2,9 +2,14 @@ from fastapi import FastAPI, Query, HTTPException
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timezone
+from pathlib import Path
+import hashlib
+import difflib
+import json
 import os
+import yaml
 
 load_dotenv()
 
@@ -300,3 +305,239 @@ def reject_change(approval_id: str, body: ApproveRejectBody):
     if not response.data:
         raise HTTPException(status_code=404, detail="Approval not found")
     return response.data[0]
+
+
+# ── DSL SCAN ──────────────────────────────────────────────────────────────────
+# Reads every .yml in dify-data/, parses LLM/code/agent nodes, compares
+# SHA256 hashes against workflow_nodes table, and:
+#   - First-seen nodes  → stored directly as baseline (no approval needed)
+#   - Changed nodes     → pending change_approval created (unless one already pending)
+# ─────────────────────────────────────────────────────────────────────────────
+
+DIFY_DATA_DIR = Path(__file__).parent.parent / "dify-data"
+TRACKED_TYPES = {"llm", "code", "agent"}
+
+
+def _hash(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _extract_llm_content(data: dict) -> str:
+    parts = []
+    model = data.get("model", {})
+    parts.append(f"[model] {model.get('name', '')} / {model.get('provider', '')}")
+    for msg in data.get("prompt_template", []):
+        role = msg.get("role", "")
+        text = (msg.get("text") or "").strip()
+        if text:
+            parts.append(f"[{role}]\n{text}")
+    structured = data.get("structured_output", {})
+    if data.get("structured_output_enabled") and structured:
+        parts.append(f"[schema]\n{json.dumps(structured, ensure_ascii=False, sort_keys=True)}")
+    return "\n\n".join(parts)
+
+
+def _extract_code_content(data: dict) -> str:
+    return (data.get("code") or "").strip()
+
+
+def _extract_agent_content(data: dict) -> str:
+    tools = data.get("tools", [])
+    simplified = [
+        {
+            "tool_name": t.get("tool_name") or t.get("tool_label", ""),
+            "provider": t.get("provider_name", ""),
+            "enabled": t.get("enabled", True),
+        }
+        for t in tools
+    ]
+    return json.dumps({"strategy": data.get("agent_strategy_name", ""), "tools": simplified}, indent=2)
+
+
+_EXTRACTORS = {"llm": _extract_llm_content, "code": _extract_code_content, "agent": _extract_agent_content}
+
+
+def _parse_yaml_nodes(file_path: Path) -> tuple[str, list[dict]]:
+    """Return (workflow_name, list of node dicts) from a Dify DSL YAML."""
+    with open(file_path, "r", encoding="utf-8") as fh:
+        raw = yaml.safe_load(fh)
+    workflow_name = raw.get("app", {}).get("name", file_path.stem)
+    nodes = raw.get("workflow", {}).get("graph", {}).get("nodes", [])
+    extracted = []
+    for node in nodes:
+        data = node.get("data", {})
+        node_type = data.get("type", "")
+        if node_type not in TRACKED_TYPES:
+            continue
+        content = _EXTRACTORS[node_type](data)
+        if not content:
+            continue
+        extracted.append({
+            "workflow_name": workflow_name,
+            "node_type": node_type,
+            "node_name": data.get("title", node.get("id", "unnamed")),
+            "node_id": node.get("id", ""),
+            "content": content,
+            "content_hash": _hash(content),
+        })
+    return workflow_name, extracted
+
+
+def _make_diff(old_content: str, new_content: str, node_name: str, node_type: str) -> str:
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff_lines = list(difflib.unified_diff(
+        old_lines, new_lines,
+        fromfile=f"{node_name} (stored)",
+        tofile=f"{node_name} (new)",
+        lineterm="",
+    ))
+    header = f"=== CHANGE DETECTED ===\n  node_type : {node_type}\n  node_name : {node_name}\n{'=' * 60}\n"
+    return header + "\n".join(diff_lines)
+
+
+@app.get("/dsl/status")
+def dsl_status():
+    """
+    Return summary of what .yml files are in dify-data/ and how many
+    nodes are stored per workflow in workflow_nodes.
+    """
+    if not DIFY_DATA_DIR.exists():
+        raise HTTPException(status_code=404, detail="dify-data/ folder not found next to mcp_server/")
+
+    files = sorted(p.name for p in DIFY_DATA_DIR.glob("*.yml"))
+
+    stored_resp = supabase.table("workflow_nodes").select("workflow_name, node_name, content_hash, committed_at").execute()
+    stored_by_workflow: dict[str, list] = {}
+    for row in (stored_resp.data or []):
+        wf = row["workflow_name"]
+        stored_by_workflow.setdefault(wf, []).append(row)
+
+    pending_resp = (
+        supabase.table("change_approvals")
+        .select("workflow_name, node_name")
+        .eq("status", "pending")
+        .execute()
+    )
+    pending_set = {(r["workflow_name"], r["node_name"]) for r in (pending_resp.data or [])}
+
+    return {
+        "dify_data_dir": str(DIFY_DATA_DIR),
+        "files_in_folder": files,
+        "stored_workflows": {wf: len(nodes) for wf, nodes in stored_by_workflow.items()},
+        "pending_approvals": len(pending_set),
+    }
+
+
+@app.post("/dsl/scan")
+def dsl_scan(submitted_by: str = Query(..., description="Name of the person triggering the scan")):
+    """
+    Scan all .yml files in dify-data/.
+    - First-seen nodes  → stored as baseline in workflow_nodes (no approval)
+    - Changed nodes     → pending change_approval created (skipped if one already pending)
+    - Unchanged nodes   → skipped
+    Returns a full summary of the scan.
+    """
+    if not DIFY_DATA_DIR.exists():
+        raise HTTPException(status_code=404, detail="dify-data/ folder not found next to mcp_server/")
+
+    yaml_files = sorted(DIFY_DATA_DIR.glob("*.yml"))
+    if not yaml_files:
+        raise HTTPException(status_code=404, detail="No YAML files found in dify-data/")
+
+    # Load all stored nodes keyed by (workflow_name, node_name)
+    stored_resp = supabase.table("workflow_nodes").select("*").execute()
+    stored: dict[tuple, dict] = {}
+    for row in (stored_resp.data or []):
+        stored[(row["workflow_name"], row["node_name"])] = row
+
+    # Load all existing pending approvals to avoid duplicates
+    pending_resp = (
+        supabase.table("change_approvals")
+        .select("workflow_name, node_name")
+        .eq("status", "pending")
+        .execute()
+    )
+    already_pending = {(r["workflow_name"], r["node_name"]) for r in (pending_resp.data or [])}
+
+    summary = {
+        "scanned_files": [],
+        "new_nodes": [],       # baselined immediately, no approval needed
+        "changed_nodes": [],   # pending approval created
+        "already_pending": [], # skipped — approval already exists
+        "unchanged_nodes": [],
+        "errors": [],
+    }
+
+    for yaml_file in yaml_files:
+        summary["scanned_files"].append(yaml_file.name)
+        try:
+            workflow_name, nodes = _parse_yaml_nodes(yaml_file)
+        except Exception as exc:
+            summary["errors"].append({"file": yaml_file.name, "error": str(exc)})
+            continue
+
+        for node in nodes:
+            key = (node["workflow_name"], node["node_name"])
+            existing = stored.get(key)
+
+            if existing is None:
+                # Brand new node — store as baseline
+                supabase.table("workflow_nodes").insert({
+                    "workflow_name": node["workflow_name"],
+                    "workflow_version": "v1.0",
+                    "node_type": node["node_type"],
+                    "node_name": node["node_name"],
+                    "node_content": node["content"],
+                    "content_hash": node["content_hash"],
+                    "committed_by": submitted_by,
+                }).execute()
+                summary["new_nodes"].append({
+                    "workflow": node["workflow_name"],
+                    "node": node["node_name"],
+                    "type": node["node_type"],
+                })
+
+            elif existing["content_hash"] == node["content_hash"]:
+                summary["unchanged_nodes"].append({
+                    "workflow": node["workflow_name"],
+                    "node": node["node_name"],
+                })
+
+            elif key in already_pending:
+                summary["already_pending"].append({
+                    "workflow": node["workflow_name"],
+                    "node": node["node_name"],
+                })
+
+            else:
+                # Hash changed — create pending approval
+                diff = _make_diff(
+                    existing.get("node_content", ""),
+                    node["content"],
+                    node["node_name"],
+                    node["node_type"],
+                )
+                supabase.table("change_approvals").insert({
+                    "workflow_name": node["workflow_name"],
+                    "node_name": node["node_name"],
+                    "changed_by": submitted_by,
+                    "diff_content": diff,
+                    "status": "pending",
+                }).execute()
+                summary["changed_nodes"].append({
+                    "workflow": node["workflow_name"],
+                    "node": node["node_name"],
+                    "type": node["node_type"],
+                })
+
+    summary["totals"] = {
+        "files": len(summary["scanned_files"]),
+        "new": len(summary["new_nodes"]),
+        "changed": len(summary["changed_nodes"]),
+        "already_pending": len(summary["already_pending"]),
+        "unchanged": len(summary["unchanged_nodes"]),
+        "errors": len(summary["errors"]),
+    }
+
+    return summary

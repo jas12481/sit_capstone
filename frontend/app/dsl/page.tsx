@@ -6,8 +6,12 @@ import {
   getWorkflowNodes,
   approveChange,
   rejectChange,
+  scanDslFolder,
+  getDslStatus,
   type ChangeApproval,
   type WorkflowNode,
+  type ScanSummary,
+  type DslStatus,
 } from '@/lib/mcp';
 
 type Tab = 'pending' | 'history' | 'nodes';
@@ -192,18 +196,27 @@ export default function DslPage() {
   const [error, setError] = useState('');
   const [workflowFilter, setWorkflowFilter] = useState('');
 
+  // Scan state
+  const [scanName, setScanName] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanSummary | null>(null);
+  const [scanError, setScanError] = useState('');
+  const [dslStatus, setDslStatus] = useState<DslStatus | null>(null);
+
   const reload = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [p, h, n] = await Promise.all([
+      const [p, h, n, status] = await Promise.all([
         getChangeApprovals({ status: 'pending', limit: 100 }),
         getChangeApprovals({ limit: 100 }),
         getWorkflowNodes(workflowFilter || undefined),
+        getDslStatus().catch(() => null),
       ]);
       setPending(p);
       setHistory(h.filter(a => a.status !== 'pending'));
       setNodes(n);
+      setDslStatus(status);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -213,6 +226,26 @@ export default function DslPage() {
 
   useEffect(() => { reload(); }, [reload]);
 
+  async function runScan() {
+    if (!scanName.trim()) {
+      setScanError('Enter your name before scanning.');
+      return;
+    }
+    setScanning(true);
+    setScanResult(null);
+    setScanError('');
+    try {
+      const result = await scanDslFolder(scanName.trim());
+      setScanResult(result);
+      // Refresh pending list if new approvals were created
+      if (result.totals.changed > 0) await reload();
+    } catch (e: unknown) {
+      setScanError(e instanceof Error ? e.message : 'Scan failed');
+    } finally {
+      setScanning(false);
+    }
+  }
+
   const TABS: { id: Tab; label: string; count?: number }[] = [
     { id: 'pending', label: 'Pending Approvals', count: pending.length },
     { id: 'history', label: 'History' },
@@ -221,15 +254,110 @@ export default function DslPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">DSL Change Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Governed version control for Dify workflow configurations</p>
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">DSL Change Management</h1>
+        <p className="text-sm text-gray-500 mt-1">Governed version control for Dify workflow configurations</p>
+      </div>
+
+      {/* Scan panel */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Scan dify-data/</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Reads all YAMLs in the folder, detects changes, and creates pending approvals automatically.
+              {dslStatus && (
+                <span className="ml-2 text-gray-400">
+                  {dslStatus.files_in_folder.length} file{dslStatus.files_in_folder.length !== 1 ? 's' : ''} in folder
+                  · {dslStatus.pending_approvals} pending
+                </span>
+              )}
+            </p>
+          </div>
         </div>
-        <div className="text-xs text-gray-400 bg-gray-100 rounded-lg px-3 py-2 font-mono space-y-0.5">
-          <p>python -m dsl_manager scan --file &lt;file.yml&gt; --by &lt;name&gt;</p>
-          <p>python -m dsl_manager init --file &lt;file.yml&gt; --by &lt;name&gt;</p>
+
+        <div className="flex gap-3 items-center">
+          <input
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-56"
+            placeholder="Your name (required)"
+            value={scanName}
+            onChange={e => setScanName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runScan()}
+          />
+          <button
+            onClick={runScan}
+            disabled={scanning}
+            className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2 rounded-lg transition flex items-center gap-2"
+          >
+            {scanning ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Scanning…
+              </>
+            ) : 'Scan dify-data/'}
+          </button>
         </div>
+
+        {scanError && (
+          <p className="mt-3 text-xs text-red-600">{scanError}</p>
+        )}
+
+        {/* Scan results */}
+        {scanResult && (
+          <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-5 gap-2">
+              {[
+                { label: 'Files scanned', value: scanResult.totals.files, colour: 'text-gray-700' },
+                { label: 'New (baselined)', value: scanResult.totals.new, colour: 'text-blue-600' },
+                { label: 'Changed', value: scanResult.totals.changed, colour: scanResult.totals.changed > 0 ? 'text-orange-600' : 'text-gray-400' },
+                { label: 'Unchanged', value: scanResult.totals.unchanged, colour: 'text-green-600' },
+                { label: 'Errors', value: scanResult.totals.errors, colour: scanResult.totals.errors > 0 ? 'text-red-600' : 'text-gray-400' },
+              ].map(s => (
+                <div key={s.label} className="bg-gray-50 rounded-lg p-3 text-center">
+                  <p className={`text-xl font-bold ${s.colour}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {scanResult.totals.changed > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3 text-xs text-orange-800">
+                <p className="font-semibold mb-1">{scanResult.totals.changed} node(s) changed — pending approvals created:</p>
+                <ul className="space-y-0.5">
+                  {scanResult.changed_nodes.map((n, i) => (
+                    <li key={i}>• [{n.type.toUpperCase()}] {n.workflow} — {n.node}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {scanResult.totals.new > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-800">
+                <p className="font-semibold mb-1">{scanResult.totals.new} new node(s) baselined:</p>
+                <ul className="space-y-0.5">
+                  {scanResult.new_nodes.map((n, i) => (
+                    <li key={i}>• [{n.type.toUpperCase()}] {n.workflow} — {n.node}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {scanResult.errors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-800">
+                {scanResult.errors.map((e, i) => (
+                  <p key={i}><span className="font-semibold">{e.file}:</span> {e.error}</p>
+                ))}
+              </div>
+            )}
+
+            {scanResult.totals.changed === 0 && scanResult.totals.new === 0 && scanResult.totals.errors === 0 && (
+              <p className="text-xs text-green-600 font-medium">✓ All nodes are up to date — no changes detected.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (

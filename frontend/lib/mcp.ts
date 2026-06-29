@@ -120,3 +120,37 @@ export function rejectChange(approval_id: string, actioned_by: string, reason: s
     reason,
   });
 }
+
+// ── DSL Scan ─────────────────────────────────────────────────────────────────
+
+export type ScanSummary = {
+  scanned_files: string[];
+  new_nodes: { workflow: string; node: string; type: string }[];
+  changed_nodes: { workflow: string; node: string; type: string }[];
+  already_pending: { workflow: string; node: string }[];
+  unchanged_nodes: { workflow: string; node: string }[];
+  errors: { file: string; error: string }[];
+  totals: {
+    files: number;
+    new: number;
+    changed: number;
+    already_pending: number;
+    unchanged: number;
+    errors: number;
+  };
+};
+
+export type DslStatus = {
+  dify_data_dir: string;
+  files_in_folder: string[];
+  stored_workflows: Record<string, number>;
+  pending_approvals: number;
+};
+
+export function getDslStatus() {
+  return get<DslStatus>('/dsl/status');
+}
+
+export function scanDslFolder(submitted_by: string) {
+  return post<ScanSummary>(`/dsl/scan?submitted_by=${encodeURIComponent(submitted_by)}`, {});
+}
