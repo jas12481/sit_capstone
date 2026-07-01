@@ -270,6 +270,18 @@ def create_change_approval(approval: ChangeApprovalCreate):
 
 @app.post("/change-approvals/{approval_id}/approve")
 def approve_change(approval_id: str, body: ApproveRejectBody):
+    # Fetch the approval first so we can promote new_content → workflow_nodes
+    fetch = (
+        supabase.table("change_approvals")
+        .select("*")
+        .eq("approval_id", approval_id)
+        .single()
+        .execute()
+    )
+    if not fetch.data:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    approval = fetch.data
+
     update_data = {
         "status": "approved",
         "approved_by": body.actioned_by,
@@ -278,6 +290,7 @@ def approve_change(approval_id: str, body: ApproveRejectBody):
     }
     if body.git_commit_hash:
         update_data["git_commit_hash"] = body.git_commit_hash
+
     response = (
         supabase.table("change_approvals")
         .update(update_data)
@@ -285,7 +298,19 @@ def approve_change(approval_id: str, body: ApproveRejectBody):
         .execute()
     )
     if not response.data:
-        raise HTTPException(status_code=404, detail="Approval not found")
+        raise HTTPException(status_code=404, detail="Approval update failed")
+
+    # Promote new content to workflow_nodes
+    new_content = approval.get("new_content")
+    new_hash = approval.get("new_hash")
+    if new_content and new_hash:
+        supabase.table("workflow_nodes").update({
+            "node_content": new_content,
+            "content_hash": new_hash,
+            "committed_by": body.actioned_by,
+            "committed_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("workflow_name", approval["workflow_name"]).eq("node_name", approval["node_name"]).execute()
+
     return response.data[0]
 
 
@@ -533,6 +558,10 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
                 supabase.table("change_approvals").insert({
                     "workflow_name": node["workflow_name"],
                     "node_name": node["node_name"],
+                    "node_type": node["node_type"],
+                    "node_id": node["node_id"],
+                    "new_content": node["content"],
+                    "new_hash": node["content_hash"],
                     "changed_by": submitted_by,
                     "diff_content": diff,
                     "status": "pending",
