@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 import {
   getChangeApprovals,
   getWorkflowNodes,
@@ -167,28 +168,29 @@ function DiffViewer({ diff }: { diff: string }) {
 
 function ApprovalForm({
   approval,
+  verifiedName,
   onDone,
 }: {
   approval: ChangeApproval;
+  verifiedName: string;
   onDone: () => void;
 }) {
-  const [name, setName] = useState('');
   const [reason, setReason] = useState('');
   const [acting, setActing] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState('');
 
   async function act(action: 'approve' | 'reject') {
-    if (!name.trim() || !reason.trim()) {
-      setError('Both name and reason are required.');
+    if (!verifiedName.trim() || !reason.trim()) {
+      setError(!verifiedName.trim() ? 'Your Okta identity could not be verified.' : 'A justification is required.');
       return;
     }
     setActing(action);
     setError('');
     try {
       if (action === 'approve') {
-        await approveChange(approval.approval_id, name, reason);
+        await approveChange(approval.approval_id, verifiedName, reason);
       } else {
-        await rejectChange(approval.approval_id, name, reason);
+        await rejectChange(approval.approval_id, verifiedName, reason);
       }
       onDone();
     } catch (e: unknown) {
@@ -202,12 +204,12 @@ function ApprovalForm({
     <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
       <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Sign off</h4>
       <div className="flex gap-3">
-        <input
-          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          placeholder="Your full name (required)"
-          value={name}
-          onChange={e => setName(e.target.value)}
-        />
+        <div className="flex-1 border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {verifiedName || 'Not signed in'}
+        </div>
         <input
           className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           placeholder="Justification (required)"
@@ -239,10 +241,12 @@ function ApprovalForm({
 function ApprovalCard({
   approval,
   showForm,
+  verifiedName,
   onDone,
 }: {
   approval: ChangeApproval;
   showForm: boolean;
+  verifiedName: string;
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -297,7 +301,7 @@ function ApprovalCard({
             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Diff</h4>
             <DiffViewer diff={approval.diff_content} />
           </div>
-          {showForm && <ApprovalForm approval={approval} onDone={onDone} />}
+          {showForm && <ApprovalForm approval={approval} verifiedName={verifiedName} onDone={onDone} />}
         </div>
       )}
     </div>
@@ -368,6 +372,9 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
 }
 
 export default function DslPage() {
+  const { data: session } = useSession();
+  const verifiedName = session?.user?.name || session?.user?.email || '';
+
   const [tab, setTab] = useState<Tab>('pending');
   const [pending, setPending] = useState<ChangeApproval[]>([]);
   const [history, setHistory] = useState<ChangeApproval[]>([]);
@@ -377,7 +384,6 @@ export default function DslPage() {
   const [workflowFilter, setWorkflowFilter] = useState('');
 
   // Scan state
-  const [scanName, setScanName] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScanSummary | null>(null);
   const [scanError, setScanError] = useState('');
@@ -407,15 +413,15 @@ export default function DslPage() {
   useEffect(() => { reload(); }, [reload]);
 
   async function runScan() {
-    if (!scanName.trim()) {
-      setScanError('Enter your name before scanning.');
+    if (!verifiedName) {
+      setScanError('Your Okta identity could not be verified — try signing in again.');
       return;
     }
     setScanning(true);
     setScanResult(null);
     setScanError('');
     try {
-      const result = await scanDslFolder(scanName.trim());
+      const result = await scanDslFolder(verifiedName);
       setScanResult(result);
       // Refresh pending list if new approvals were created
       if (result.totals.changed > 0) await reload();
@@ -434,9 +440,24 @@ export default function DslPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900">DSL Change Management</h1>
-        <p className="text-sm text-gray-500 mt-1">Governed version control for Dify workflow configurations</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">DSL Change Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Governed version control for Dify workflow configurations</p>
+        </div>
+        {verifiedName && (
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Signed in as <span className="font-medium text-gray-700">{verifiedName}</span> (Okta)
+            </span>
+            <button onClick={() => signOut()} className="text-gray-400 hover:text-gray-600 underline">
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Scan panel */}
@@ -457,13 +478,12 @@ export default function DslPage() {
         </div>
 
         <div className="flex gap-3 items-center">
-          <input
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-56"
-            placeholder="Your name (required)"
-            value={scanName}
-            onChange={e => setScanName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && runScan()}
-          />
+          <div className="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 w-56 flex items-center gap-2">
+            <svg className="w-3.5 h-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="truncate">{verifiedName || 'Not signed in'}</span>
+          </div>
           <button
             onClick={runScan}
             disabled={scanning}
@@ -584,7 +604,7 @@ export default function DslPage() {
             </div>
           ) : (
             pending.map(a => (
-              <ApprovalCard key={a.approval_id} approval={a} showForm onDone={reload} />
+              <ApprovalCard key={a.approval_id} approval={a} showForm verifiedName={verifiedName} onDone={reload} />
             ))
           )}
         </div>
@@ -596,7 +616,7 @@ export default function DslPage() {
             <div className="text-center py-16 text-gray-400 text-sm">No approved or rejected changes yet.</div>
           ) : (
             history.map(a => (
-              <ApprovalCard key={a.approval_id} approval={a} showForm={false} onDone={reload} />
+              <ApprovalCard key={a.approval_id} approval={a} showForm={false} verifiedName={verifiedName} onDone={reload} />
             ))
           )}
         </div>
