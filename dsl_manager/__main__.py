@@ -175,6 +175,8 @@ def cmd_scan(args: argparse.Namespace) -> None:
             changed_by=args.by,
             diff_content=item["diff_content"],
             node_id=item.get("node_id"),
+            new_content=item["content"],
+            new_hash=item["content_hash"],
         )
         label = "NEW" if item["is_new"] else "MODIFIED"
         _ok(
@@ -263,19 +265,25 @@ def cmd_approve(args: argparse.Namespace) -> None:
         _err(f"Cannot approve — status is already '{a['status']}'.")
         sys.exit(1)
 
+    node_type = a.get("node_type") or "unknown"
+
+    # new_content/new_hash are populated on every approval submitted after
+    # this fix (both by this CLI and by the server's /dsl/scan). Fall back to
+    # reconstructing from the stored diff for older pending approvals that
+    # predate the field.
+    new_content = a.get("new_content") or _extract_new_content_from_diff(a.get("diff_content", ""))
+
     commit_sha: Optional[str] = None
 
     # Try to commit to GitHub; continue even if credentials are missing.
     try:
-        diff_content = a.get("diff_content", "")
-        new_content = _extract_new_content_from_diff(diff_content)
         if not new_content:
-            _warn("Could not extract new content from diff — GitHub commit skipped.")
+            _warn("Could not determine new content — GitHub commit skipped.")
         else:
             commit_sha = git_commit.commit_approved_change(
                 workflow_name=a["workflow_name"],
                 node_name=a["node_name"],
-                node_type="unknown",
+                node_type=node_type,
                 new_content=new_content,
                 approved_by=args.by,
                 reason=args.reason,
@@ -287,7 +295,7 @@ def cmd_approve(args: argparse.Namespace) -> None:
     except Exception as exc:  # noqa: BLE001
         _warn(f"GitHub commit failed (approval still recorded): {exc}")
 
-    result = approvals.approve_change(
+    approvals.approve_change(
         approval_id=a["approval_id"],
         actioned_by=args.by,
         reason=args.reason,
@@ -298,20 +306,21 @@ def cmd_approve(args: argparse.Namespace) -> None:
         f"(by {args.by})"
     )
 
-    # Update workflow_nodes with new content + hash.
-    if result.get("diff_content"):
-        new_content = _extract_new_content_from_diff(result["diff_content"])
-        if new_content:
-            from dsl_manager.parser import hash_content
-            approvals.store_node(
-                workflow_name=a["workflow_name"],
-                node_type="unknown",
-                node_name=a["node_name"],
-                content=new_content,
-                content_hash=hash_content(new_content),
-                committed_by=args.by,
-                git_commit_hash=commit_sha,
-            )
+    # Attach git_commit_hash to workflow_nodes — the server's own promotion
+    # (triggered inside approve_change above when new_content/new_hash are
+    # present) doesn't know the commit SHA, since committing happens here in
+    # the CLI, not on the server.
+    if new_content:
+        from dsl_manager.parser import hash_content
+        approvals.store_node(
+            workflow_name=a["workflow_name"],
+            node_type=node_type,
+            node_name=a["node_name"],
+            content=new_content,
+            content_hash=a.get("new_hash") or hash_content(new_content),
+            committed_by=args.by,
+            git_commit_hash=commit_sha,
+        )
 
 
 def cmd_reject(args: argparse.Namespace) -> None:

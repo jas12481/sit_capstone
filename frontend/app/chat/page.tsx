@@ -13,9 +13,6 @@ type Message = {
   timestamp: string;
 };
 
-const DIFY_URL = process.env.NEXT_PUBLIC_DIFY_URL || '';
-const DIFY_KEY = process.env.NEXT_PUBLIC_DIFY_API_KEY || '';
-
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -31,10 +28,6 @@ export default function ChatPage() {
   async function send() {
     const query = input.trim();
     if (!query || loading) return;
-    if (!DIFY_URL || !DIFY_KEY) {
-      setError('Dify API URL and key are not configured. Set NEXT_PUBLIC_DIFY_URL and NEXT_PUBLIC_DIFY_API_KEY in .env.local.');
-      return;
-    }
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -56,12 +49,9 @@ export default function ChatPage() {
       };
       if (conversationId) body.conversation_id = conversationId;
 
-      const res = await fetch(`${DIFY_URL}/v1/chat-messages`, {
+      const res = await fetch('/api/dify/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${DIFY_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 

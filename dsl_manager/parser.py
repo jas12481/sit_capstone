@@ -32,7 +32,7 @@ TRACKED_TYPES = {"llm", "code", "agent"}
 
 # ── content extraction ────────────────────────────────────────────────────────
 
-def _extract_llm_content(data: dict) -> str:
+def extract_llm_content(data: dict) -> str:
     """
     Concatenate system + user prompt texts from prompt_template.
     Includes model name so a model swap is also detected as a change.
@@ -54,32 +54,48 @@ def _extract_llm_content(data: dict) -> str:
     return "\n\n".join(parts)
 
 
-def _extract_code_content(data: dict) -> str:
+def extract_code_content(data: dict) -> str:
     return (data.get("code") or "").strip()
 
 
-def _extract_agent_content(data: dict) -> str:
+def extract_agent_content(data: dict) -> str:
     """
-    Serialise the list of tools bound to the agent node.
-    Captures tool names, provider names, and enabled state.
+    Serialise the strategy, model, instruction, query, and tools bound to
+    the agent node. Dify stores these inside agent_parameters; fall back to
+    top-level `tools` for older exports that don't nest them.
     """
-    tools = data.get("tools", [])
+    params = data.get("agent_parameters", {})
+    instruction = params.get("instruction", {}).get("value", "")
+    query_tpl = params.get("query", {}).get("value", "")
+    tools_raw = params.get("tools", {}).get("value", []) or data.get("tools", [])
     simplified = [
         {
-            "tool_name": t.get("tool_name") or t.get("tool_label", ""),
+            "tool_name": t.get("tool_name") or t.get("provider_show_name") or t.get("tool_label", ""),
             "provider": t.get("provider_name", ""),
             "enabled": t.get("enabled", True),
         }
-        for t in tools
+        for t in tools_raw
     ]
+    model_val = params.get("model", {}).get("value", {})
+    model_name = model_val.get("model", "") if isinstance(model_val, dict) else ""
     strategy = data.get("agent_strategy_name", "")
-    return json.dumps({"strategy": strategy, "tools": simplified}, indent=2, ensure_ascii=False)
+    return json.dumps(
+        {
+            "strategy": strategy,
+            "model": model_name,
+            "instruction": instruction,
+            "query": query_tpl,
+            "tools": simplified,
+        },
+        indent=2,
+        ensure_ascii=False,
+    )
 
 
 _EXTRACTORS = {
-    "llm": _extract_llm_content,
-    "code": _extract_code_content,
-    "agent": _extract_agent_content,
+    "llm": extract_llm_content,
+    "code": extract_code_content,
+    "agent": extract_agent_content,
 }
 
 

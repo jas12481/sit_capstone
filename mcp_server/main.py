@@ -5,11 +5,16 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
 from pathlib import Path
-import hashlib
-import difflib
-import json
 import os
-import yaml
+import sys
+
+# dsl_manager lives at the repo root, one level up from this file. Add it to
+# sys.path so parsing/hashing/diffing logic has a single implementation
+# shared by this server-side scan and the `dsl_manager` CLI — do not
+# reimplement node extraction here.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from dsl_manager.parser import parse_workflow, hash_content  # noqa: E402
+from dsl_manager.diff import compute_diff  # noqa: E402
 
 load_dotenv()
 
@@ -232,8 +237,14 @@ class ChangeApprovalCreate(BaseModel):
     node_id: Optional[str] = None
     workflow_name: str
     node_name: str
+    node_type: Optional[str] = None
     changed_by: str
     diff_content: str
+    # Populated by both the dsl_manager CLI and the /dsl/scan endpoint so the
+    # approve endpoint below can promote to workflow_nodes uniformly
+    # regardless of which path created the pending approval.
+    new_content: Optional[str] = None
+    new_hash: Optional[str] = None
 
 
 class ApproveRejectBody(BaseModel):
@@ -340,97 +351,6 @@ def reject_change(approval_id: str, body: ApproveRejectBody):
 # ─────────────────────────────────────────────────────────────────────────────
 
 DIFY_DATA_DIR = Path(__file__).parent.parent / "dify-data"
-TRACKED_TYPES = {"llm", "code", "agent"}
-
-
-def _hash(content: str) -> str:
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-
-def _extract_llm_content(data: dict) -> str:
-    parts = []
-    model = data.get("model", {})
-    parts.append(f"[model] {model.get('name', '')} / {model.get('provider', '')}")
-    for msg in data.get("prompt_template", []):
-        role = msg.get("role", "")
-        text = (msg.get("text") or "").strip()
-        if text:
-            parts.append(f"[{role}]\n{text}")
-    structured = data.get("structured_output", {})
-    if data.get("structured_output_enabled") and structured:
-        parts.append(f"[schema]\n{json.dumps(structured, ensure_ascii=False, sort_keys=True)}")
-    return "\n\n".join(parts)
-
-
-def _extract_code_content(data: dict) -> str:
-    return (data.get("code") or "").strip()
-
-
-def _extract_agent_content(data: dict) -> str:
-    # Dify agent nodes store instruction/query/tools inside agent_parameters
-    params = data.get("agent_parameters", {})
-    instruction = params.get("instruction", {}).get("value", "")
-    query_tpl = params.get("query", {}).get("value", "")
-    tools_raw = params.get("tools", {}).get("value", []) or data.get("tools", [])
-    simplified = [
-        {
-            "tool_name": t.get("tool_name") or t.get("provider_show_name") or t.get("tool_label", ""),
-            "provider": t.get("provider_name", ""),
-            "enabled": t.get("enabled", True),
-        }
-        for t in tools_raw
-    ]
-    model_val = params.get("model", {}).get("value", {})
-    model_name = model_val.get("model", "") if isinstance(model_val, dict) else ""
-    return json.dumps({
-        "strategy": data.get("agent_strategy_name", ""),
-        "model": model_name,
-        "instruction": instruction,
-        "query": query_tpl,
-        "tools": simplified,
-    }, indent=2)
-
-
-_EXTRACTORS = {"llm": _extract_llm_content, "code": _extract_code_content, "agent": _extract_agent_content}
-
-
-def _parse_yaml_nodes(file_path: Path) -> tuple[str, list[dict]]:
-    """Return (workflow_name, list of node dicts) from a Dify DSL YAML."""
-    with open(file_path, "r", encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh)
-    workflow_name = raw.get("app", {}).get("name", file_path.stem)
-    nodes = raw.get("workflow", {}).get("graph", {}).get("nodes", [])
-    extracted = []
-    for node in nodes:
-        data = node.get("data", {})
-        node_type = data.get("type", "")
-        if node_type not in TRACKED_TYPES:
-            continue
-        content = _EXTRACTORS[node_type](data)
-        if not content:
-            continue
-        extracted.append({
-            "workflow_name": workflow_name,
-            "node_type": node_type,
-            "node_name": data.get("title", node.get("id", "unnamed")),
-            "node_id": node.get("id", ""),
-            "content": content,
-            "content_hash": _hash(content),
-        })
-    return workflow_name, extracted
-
-
-def _make_diff(old_content: str, new_content: str, node_name: str, node_type: str) -> str:
-    old_lines = old_content.splitlines(keepends=True)
-    new_lines = new_content.splitlines(keepends=True)
-    diff_lines = list(difflib.unified_diff(
-        old_lines, new_lines,
-        fromfile=f"{node_name} (stored)",
-        tofile=f"{node_name} (new)",
-        lineterm="",
-    ))
-    header = f"=== CHANGE DETECTED ===\n  node_type : {node_type}\n  node_name : {node_name}\n{'=' * 60}\n"
-    return header + "\n".join(diff_lines)
 
 
 @app.get("/dsl/status")
@@ -509,7 +429,7 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
     for yaml_file in yaml_files:
         summary["scanned_files"].append(yaml_file.name)
         try:
-            workflow_name, nodes = _parse_yaml_nodes(yaml_file)
+            nodes = parse_workflow(yaml_file)
         except Exception as exc:
             summary["errors"].append({"file": yaml_file.name, "error": str(exc)})
             continue
@@ -549,7 +469,7 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
 
             else:
                 # Hash changed — create pending approval
-                diff = _make_diff(
+                diff = compute_diff(
                     existing.get("node_content", ""),
                     node["content"],
                     node["node_name"],

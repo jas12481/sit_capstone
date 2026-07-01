@@ -89,19 +89,31 @@ def submit_change(
     changed_by: str,
     diff_content: str,
     node_id: Optional[str] = None,
+    new_content: Optional[str] = None,
+    new_hash: Optional[str] = None,
 ) -> dict:
     """
     Create a pending change approval request on the MCP server.
     Returns the created change_approval record.
+
+    new_content/new_hash should always be passed by callers that have them
+    (cmd_scan does) — they let /change-approvals/{id}/approve promote to
+    workflow_nodes the same way regardless of whether the approval was
+    created by this CLI or by the server-side /dsl/scan endpoint.
     """
     body: dict[str, Any] = {
         "workflow_name": workflow_name,
         "node_name": node_name,
+        "node_type": node_type,
         "changed_by": changed_by,
         "diff_content": diff_content,
     }
     if node_id:
         body["node_id"] = node_id
+    if new_content:
+        body["new_content"] = new_content
+    if new_hash:
+        body["new_hash"] = new_hash
     return _post("/change-approvals", body)
 
 
