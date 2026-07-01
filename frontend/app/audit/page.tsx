@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { getAssessmentLogs, type AssessmentLog } from '@/lib/mcp';
+import { fmtDateTime } from '@/lib/fmt';
 
 const RECOMMENDATIONS = ['APPROVE', 'REJECT', 'REFER_FOR_FURTHER_REVIEW', 'PENDING'];
 const CONFIDENCE_LEVELS = ['high', 'medium', 'low'];
@@ -243,7 +244,7 @@ export default function AuditPage() {
                         : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {log.assessed_at ? new Date(log.assessed_at).toLocaleString() : '—'}
+                      {fmtDateTime(log.assessed_at)}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       <svg

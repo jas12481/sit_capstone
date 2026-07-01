@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { fmtTime } from '@/lib/fmt';
 
 type Message = {
   id: string;
@@ -39,7 +40,7 @@ export default function ChatPage() {
       id: crypto.randomUUID(),
       role: 'user',
       content: query,
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: fmtTime(),
     };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -77,7 +78,7 @@ export default function ChatPage() {
         role: 'assistant',
         content: data.answer || '(no response)',
         routing: data.metadata?.usage ? `Tokens: ${data.metadata.usage.total_tokens}` : undefined,
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: fmtTime(),
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: unknown) {

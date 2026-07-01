@@ -13,6 +13,7 @@ import {
   type ScanSummary,
   type DslStatus,
 } from '@/lib/mcp';
+import { fmtDateTime } from '@/lib/fmt';
 
 type Tab = 'pending' | 'history' | 'nodes';
 
@@ -261,7 +262,7 @@ function ApprovalCard({
         <div className="flex items-center gap-4 flex-shrink-0">
           <span className="text-xs text-gray-400">{approval.changed_by}</span>
           <span className="text-xs text-gray-400">
-            {approval.created_at ? new Date(approval.created_at).toLocaleString() : ''}
+            {fmtDateTime(approval.created_at)}
           </span>
           <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -339,7 +340,7 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
                 <td className="px-4 py-2.5 text-gray-500 text-xs">{n.workflow_version || '—'}</td>
                 <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{n.content_hash?.slice(0, 10)}…</td>
                 <td className="px-4 py-2.5 text-gray-400 text-xs">
-                  {n.committed_at ? new Date(n.committed_at).toLocaleString() : '—'}
+                  {fmtDateTime(n.committed_at)}
                 </td>
                 <td className="px-4 py-2.5 text-gray-500 text-xs">{n.committed_by || '—'}</td>
                 <td className="px-4 py-2.5 text-gray-400">
