@@ -1,7 +1,7 @@
 # AIA Capstone Project — Full Context Document
 > **For:** Claude Code and any AI assistant picking up this project  
 > **Author:** Jasbir Kaur (2302990), Applied Computing (FinTech), Singapore Institute of Technology  
-> **Last updated:** 29 June 2026 (active build log)
+> **Last updated:** 2 July 2026 (active build log)
 
 ---
 
@@ -173,6 +173,7 @@ Component 8: Frontend (React + Vercel)
 | **Storage** | Supabase Storage (policy-documents bucket) | 1,000 policy PDFs |
 | **MCP Server** | Python FastAPI | `mcp_server/main.py`. Supabase secret key bypasses RLS. Deployed on Render |
 | **Frontend** | React + Vercel | Chat UI + Audit Log + Management Dashboard + DSL Change Management UI |
+| **Authentication (DSL view)** | Okta (Integrator Free Plan) + NextAuth.js | SSO gating `/dsl` only; replaces free-text approver name with verified identity |
 | **PDF Generation** | ReportLab (Python) | 1,000 legal contract PDFs |
 | **Experiment Tracking** | MLflow + Databricks Community Edition | Prompt Registry, evaluation tracking, LLM-as-Judge metrics |
 | **Version Control** | GitHub (sit_capstone, public) | Connected to Vercel for auto-deploy |
@@ -324,16 +325,19 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | Column | Type | Notes |
 |---|---|---|
 | `approval_id` | UUID PK | |
-| `node_id` | UUID FK | → workflow_nodes |
+| `node_id` | UUID FK | → workflow_nodes.node_id (the stored node's own PK — **not** Dify's internal per-node ID from the YAML, which isn't a UUID) |
 | `workflow_name` | TEXT | |
 | `node_name` | TEXT | |
+| `node_type` | TEXT | llm, code, agent — added 2026-07-02, was missing from initial schema |
 | `changed_by` | TEXT | Who submitted (can be "prompt_advisor_agent") |
 | `approved_by` | TEXT | Who signed off |
 | `change_reason` | TEXT | Mandatory justification |
 | `diff_content` | TEXT | Before vs after |
+| `new_content` | TEXT | Full new node content — added 2026-07-02, needed so `/change-approvals/{id}/approve` can promote to `workflow_nodes` without re-parsing the diff |
+| `new_hash` | TEXT | SHA256 of `new_content` — added 2026-07-02, same reason |
 | `status` | TEXT | pending, approved, rejected |
 | `approved_at` | TIMESTAMP | |
-| `git_commit_hash` | TEXT | After approval |
+| `git_commit_hash` | TEXT | After approval — only ever set via the `dsl_manager` CLI's `approve` command; the server-side `/change-approvals/{id}/approve` endpoint does not commit to GitHub |
 | `created_at` | TIMESTAMP | |
 
 ---
@@ -702,19 +706,26 @@ A governed version control system for Dify workflow configurations. Parses expor
 5. Compare against stored hash in workflow_nodes table
 6. If changed → generate diff → create change_approvals entry (status=pending)
 7. Frontend DSL Management view shows diff + approval form
-8. Approver enters name + reason → Approve or Reject
+8. Approver's identity is verified via Okta SSO (see Component 8) — the name field is no longer free
+   text; only the justification/reason is manually entered → Approve or Reject
 9. If Approved:
    - Update workflow_nodes with new content + hash
    - Increment prompt_version in MLflow Prompt Registry
-   - Commit to GitHub: "[APPROVED] {workflow} — {node}: {reason} | By: {approver}"
-   - Store git_commit_hash in change_approvals
+   - Commit to GitHub: "[APPROVED] {workflow} — {node}: {reason} | By: {approver}" — **currently only
+     happens via the `dsl_manager` CLI's `approve` command; the frontend's approve action (server-side
+     `/change-approvals/{id}/approve`) does not yet commit to GitHub.** Deliberately deferred until a
+     dedicated branch exists for DSL governance commits.
+   - Store git_commit_hash in change_approvals (CLI path only, for now)
    - Future assessment_logs reference new prompt_version
 10. If Rejected: log rejection, no changes committed
 ```
 
 ### Modules
 
-- `dsl_manager/parser.py` — reads YAML, extracts nodes, computes SHA256 hashes
+- `dsl_manager/parser.py` — reads YAML, extracts nodes, computes SHA256 hashes. This is the single
+  source of truth for node extraction — `mcp_server/main.py`'s `/dsl/scan` endpoint imports these same
+  functions rather than re-implementing them, so the CLI and the frontend-triggered scan always agree
+  on what counts as "changed."
 - `dsl_manager/diff.py` — human-readable before/after diff
 - `dsl_manager/approvals.py` — create_approval, approve_change, reject_change
 - `dsl_manager/git_commit.py` — GitHub API commit with attribution metadata
@@ -799,7 +810,25 @@ submit_for_approval(workflow, node, current, suggested, reasoning) # POST to MCP
 
 **3. Management Dashboard** *(business stakeholders)* — claims volume by type, recommendation distribution chart, LLM-as-Judge score trend over time, confidence by workflow type, anomaly flags, workload by officer
 
-**4. DSL Change Management View** *(IT governance)* — all workflows with current version and last commit, pending changes with full diff, approval form (name + reason mandatory), approval history with Git commit links
+**4. DSL Change Management View** *(IT governance)* — all workflows with current version and last commit, pending changes with full diff, approval form (verified identity + reason mandatory), approval history with Git commit links
+
+### Authentication (Okta SSO — DSL Change Management view only)
+
+Added 2026-07-02. The DSL Change Management view is gated behind Okta login via NextAuth.js — Chat,
+Audit Log, and Dashboard remain open with no login required (a deliberate scope decision: only the
+governance/sign-off actions need a verified identity). `middleware.ts` protects the `/dsl` route and
+redirects unauthenticated visitors to Okta; on successful login, the approver's verified name/email
+from Okta replaces what used to be a free-text "your name" field in both the scan trigger and the
+approval sign-off form. The justification/reason field remains free text — only identity is meant to
+be verified, not the written reason.
+
+Backing Okta org: a free **Integrator Free Plan** org (`https://integrator-1939264.okta.com`), created
+specifically for this project. Okta's own onboarding explicitly flags this plan as "not recommended for
+production uses" — accepted as a known, documented limitation of the capstone deployment; a real AIA
+deployment would use a properly licensed Okta org. Client ID/secret and issuer URL are stored as
+`OKTA_CLIENT_ID` / `OKTA_CLIENT_SECRET` / `OKTA_ISSUER` (server-only env vars, mirrored in both
+`frontend/.env.local` and Vercel's project environment variables — they are not synced automatically
+between the two).
 
 ---
 
@@ -937,6 +966,9 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | dsl_manager/ (parser, diff, approvals, git) | ✅ Done | parser, diff, approvals, git_commit, __main__ CLI |
 | evaluation/prompt_advisor.py | 🔲 To build | Reads MLflow, proposes improvements |
 | Frontend — all 4 views | ✅ Done | Next.js 14, Tailwind, Recharts — Chat, Audit Log, Dashboard, DSL Management |
+| Dify key removed from client bundle | ✅ Done | Chat view now proxies through `app/api/dify/chat/route.ts`; was previously `NEXT_PUBLIC_DIFY_API_KEY`, shipped to the browser — rotated after the fix |
+| DSL scan/extraction consolidated | ✅ Done | `mcp_server/main.py` now imports `dsl_manager/parser.py` + `diff.py` instead of duplicating extraction logic; fixed a `node_id` UUID bug and missing `change_approvals` columns (`node_type`, `new_content`, `new_hash`) surfaced by the fix |
+| Okta SSO for DSL Change Management | ✅ Done | NextAuth.js + Okta Integrator Free Plan org; gates `/dsl` only; verified identity replaces free-text approver name |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
 
@@ -973,4 +1005,4 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 ---
 
-*Last updated: June 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*
+*Last updated: 2 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*

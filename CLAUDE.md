@@ -35,6 +35,12 @@ proxied the same way, through `app/api/dify/chat/route.ts`, using server-only `D
 `DIFY_API_KEY` env vars (no `NEXT_PUBLIC_` prefix — never put a real secret behind that prefix, it
 ships to the browser).
 
+The `/dsl` route additionally requires Okta/NextAuth env vars (`OKTA_CLIENT_ID`, `OKTA_CLIENT_SECRET`,
+`OKTA_ISSUER`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`) — see Architecture below. Generate `NEXTAUTH_SECRET`
+with `openssl rand -base64 32`; it's read implicitly by NextAuth via that exact env var name (never
+referenced directly in `lib/auth.ts`), and must be set in every environment (dev and each deployment
+target can have their own distinct value — they don't need to match).
+
 **Python environment**: a `venv/` already exists in the repo root with `mlflow`, `faker`, and
 `reportlab` installed. `requirements.txt` only lists the MCP server's direct deps (fastapi, uvicorn,
 supabase, python-dotenv, pydantic, requests, pyyaml) — it does **not** include mlflow/faker/reportlab,
@@ -74,6 +80,37 @@ respective keys server-only. If you add a new external call from a client compon
 way — don't read a secret into a `NEXT_PUBLIC_*` var, since anything with that prefix ships in the
 client bundle.
 
+**Okta SSO gates `/dsl` only** (chosen deliberately over gating the whole app — see Conventions). The
+pieces: `middleware.ts` (route matcher `['/dsl/:path*']`, redirects unauthenticated requests to Okta
+sign-in), `lib/auth.ts` (shared `authOptions`, JWT session strategy, Okta OIDC provider), the route
+handler at `app/api/auth/[...nextauth]/route.ts`, and `components/SessionProviderWrapper.tsx` (wraps
+the whole app in `layout.tsx` so `useSession()` works client-side). `dsl/page.tsx` calls `useSession()`
+and uses `session.user.name` (falling back to email) wherever the UI used to have a free-text "your
+name" input — both the scan trigger and the `ApprovalForm` sign-off name field. This replaced manual
+name entry with a verified identity; the "reason/justification" field is still free text by design —
+only identity is meant to be verified, not the justification itself.
+
+The Okta org backing this is a free **Integrator Free Plan** org (Okta's own UI explicitly says "not
+recommended for production uses" — accepted as a known limitation for a capstone deployment, not
+something to silently work around). A few non-obvious things about this specific org, worth knowing
+before touching Okta config again:
+- **Federation Broker Mode and per-user/group app assignment are mutually exclusive** — Okta will
+  refuse to let you assign the app to anyone while FBM is on ("It is not possible to assign users to an
+  AppInstance that has Federation Broker Mode enabled"). FBM is currently **off**, with the app
+  assigned directly to the one real user. If you want group-based UAT access later (recommended over
+  per-person assignment — create a group, assign the app to the group, manage membership instead),
+  FBM must stay off for that too.
+- **The `default` Authorization Server needs at least one Access Policy** (Security → API → default →
+  Access Policies) or every single login fails with a generic "Policy evaluation failed" `access_denied`
+  error, regardless of correct credentials/MFA. A policy assigned to "All clients" permitting
+  `authorization_code` exists now — don't delete it.
+- **The `default` Authorization Server's built-in `sub` claim was previously overridden** with a broken
+  expression (`(appuser != null) ? appuser.userName : app.clientId` — `appuser` isn't valid Okta
+  Expression Language, causing `server_error (The 'sub' system claim could not be evaluated.)` on every
+  token exchange). It's fixed to `user.getInternalProperty("id")` (Security → API → default → Claims).
+  If Okta login ever starts failing again with that exact error, check this claim first before assuming
+  it's a code regression.
+
 **Dify orchestration** lives outside this repo (in the Dify UI/Docker instance) and is version-tracked
 here only as YAML exports under `dify-data/`. There are 16 domain sub-workflows (4 per insurance type —
 life/health/critical_illness/disability — each with Claim_Details, Policy_Details,
@@ -103,12 +140,25 @@ different things as "changed."
 
 Both entry points also populate the same `change_approvals` fields (`node_type`, `new_content`,
 `new_hash`), so `/change-approvals/{id}/approve`'s promotion-to-`workflow_nodes` step fires identically
-regardless of which path created the pending approval. The CLI additionally commits to GitHub
-(`git_commit.py`) and re-stashes the resulting `git_commit_hash` onto `workflow_nodes` after approving
-— the server-side `/change-approvals/{id}/approve` endpoint does not touch GitHub at all, so approvals
-made from the frontend DSL view update Supabase but never produce a commit. If "every change is
-git-committed" needs to hold for frontend-approved changes too, that GitHub call has to be added
-server-side (it isn't currently).
+regardless of which path created the pending approval. **These three columns aren't in the schema
+documented in `PROJECT_CONTEXT.md` §7 — they were added via `ALTER TABLE change_approvals ADD COLUMN`
+after the code's assumption that they existed went unverified until the first real "changed node" ever
+hit that insert.** If you ever recreate this table from scratch, add them, or the scan/approve flow will
+fail with a Postgrest "column not found" error identical to what surfaced the first time.
+
+`change_approvals.node_id` is a UUID FK to `workflow_nodes.node_id` (the Postgres-generated PK for a
+stored node) — **it is not the same thing as a parsed node's own `node_id` field**, which is Dify's
+internal per-node identifier from the YAML (a non-UUID string, e.g. a timestamp). Both the CLI
+(`__main__.py::cmd_scan`) and the server (`main.py`'s `/dsl/scan`) look up the *stored* node's real UUID
+(`existing["node_id"]`) when a node has changed, and pass `None` when a node is brand new (no stored row
+yet to reference). Don't put the Dify-internal `node_id` from `parse_workflow()` directly into this
+field — Postgres will reject it with an "invalid input syntax for type uuid" error.
+
+The CLI additionally commits to GitHub (`git_commit.py`) and re-stashes the resulting `git_commit_hash`
+onto `workflow_nodes` after approving — the server-side `/change-approvals/{id}/approve` endpoint does
+not touch GitHub at all, so approvals made from the frontend DSL view update Supabase but never produce
+a commit. This is a deliberate, temporary gap: there's no dedicated GitHub branch for DSL governance
+commits yet — don't add server-side git-commit-on-approve until that's set up and asked for.
 
 **Database** (Supabase, Postgres, RLS on all tables, MCP server uses the secret/service key to bypass
 RLS): `policies`, `claims`, `claim_documents`, `eligibility_rules` are domain data (synthetic — 1,000
@@ -145,5 +195,12 @@ that assumes Supabase timestamps may be missing a timezone suffix and forces UTC
 - Prompt/DSL changes belong in the `dsl_manager` / `/dsl/scan` approval flow, not ad-hoc edits to
   `dify-data/*.yml` followed by a plain `git commit`.
 - `mcp_server/.env` and `frontend/.env.local` hold live credentials (Supabase, Databricks, GitHub
-  token, Dify API key) and are gitignored — never commit them or echo their contents into generated
-  files.
+  token, Dify API key, Okta client secret, NextAuth secret) and are gitignored — never commit them or
+  echo their contents into generated files.
+- Env vars added locally must be mirrored in the corresponding deployed platform's dashboard (Vercel
+  for frontend vars, Render for MCP server vars) — they don't sync automatically, and a rename on one
+  side without the other breaks the deployed app silently. This bit us with the Dify key rename and
+  the Okta/NextAuth vars.
+- `/dsl` is intentionally the only route gated by Okta — don't extend the `middleware.ts` matcher to
+  other routes without being asked; Chat/Audit Log/Dashboard staying open was a deliberate scope
+  decision, not an oversight.

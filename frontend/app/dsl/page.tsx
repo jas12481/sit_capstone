@@ -478,12 +478,6 @@ export default function DslPage() {
         </div>
 
         <div className="flex gap-3 items-center">
-          <div className="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 w-56 flex items-center gap-2">
-            <svg className="w-3.5 h-3.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="truncate">{verifiedName || 'Not signed in'}</span>
-          </div>
           <button
             onClick={runScan}
             disabled={scanning}
@@ -497,7 +491,7 @@ export default function DslPage() {
                 </svg>
                 Scanning…
               </>
-            ) : 'Scan dify-data/'}
+            ) : 'Scan for Pending Changes'}
           </button>
         </div>
 
