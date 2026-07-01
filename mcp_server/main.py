@@ -479,7 +479,10 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
                     "workflow_name": node["workflow_name"],
                     "node_name": node["node_name"],
                     "node_type": node["node_type"],
-                    "node_id": node["node_id"],
+                    # change_approvals.node_id is a UUID FK to workflow_nodes.node_id —
+                    # existing["node_id"] is that real stored UUID. node["node_id"] is
+                    # Dify's own internal node identifier (not a UUID) and must not go here.
+                    "node_id": existing["node_id"],
                     "new_content": node["content"],
                     "new_hash": node["content_hash"],
                     "changed_by": submitted_by,

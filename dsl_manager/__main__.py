@@ -153,7 +153,11 @@ def cmd_scan(args: argparse.Namespace) -> None:
             {
                 "node_name": node["node_name"],
                 "node_type": node["node_type"],
-                "node_id": node.get("node_id"),
+                # change_approvals.node_id is a UUID FK to workflow_nodes.node_id.
+                # existing["node_id"] is that real stored UUID; node["node_id"] is
+                # Dify's own internal node identifier (not a UUID) and must not go
+                # here. New nodes have no stored row yet, so send None.
+                "node_id": existing["node_id"] if existing else None,
                 "content": node["content"],
                 "content_hash": node["content_hash"],
                 "diff_content": diff,
