@@ -182,7 +182,7 @@ workflow:
       positionAbsolute:
         x: 80
         y: 282
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -315,13 +315,37 @@ workflow:
           role: system
           text: 'You are a claims documentation assistant. Given a claim, its policy
             type''s mandatory eligibility rules, and the list of documents already
-            submitted for this claim, determine which additional documents are
-            still required to complete assessment. Base your answer only on what
-            the rule descriptions and claim category imply (e.g. an accidental
-            death claim requires a police report or coroner''s report). If a required
-            document is already present in the submitted list, do not list it as
-            missing. Do not recommend approval or rejection — your only job is
-            to list missing documentation.'
+            submitted for this claim, determine which additional documents are still
+            required to complete assessment.
+
+              
+
+            Only list a document as missing if a specific rule in the provided eligibility_rules
+            list explicitly implies it is required (e.g. an accidental death claim
+            requires a police report or coroner''s report, per the Accidental Death
+            Evidence rule). For linked_rule_id, you MUST use the exact rule_id value
+            as it appears in the provided eligibility_rules list (e.g. "RULE-LI-005")
+            — never invent, abbreviate, or reference a clause/section number that
+            is not one of the given rule_id values. Do not add general insurance-industry
+            documentation (claim forms, death certificates, identity documents, bank
+            details, income proofs, etc.) unless a specific provided rule mentions
+            it — the eligibility_rules list is the complete and only source of truth
+            for this task, not general real-world claims practice.
+
+
+            If a required document is already present in the submitted list, do not
+            list it as missing. Set all_requirements_met to true only if there are
+            zero missing documents, and false otherwise. Do not recommend approval
+            or rejection — your only job is to list missing documentation.
+
+
+            Update the LLM node''s system prompt and re-run the same 3 tests. What
+            I want to see: CLM-0290 should come back with zero or near-zero missing
+            documents (police report already covers the only real life-type doc rule),
+            CLM-0248 should still find proof_of_occupation but drop the fabricated
+            clauses, and CLM-0049 should stay exactly as good as it already is.
+
+            '
         - id: 5e4a4d5e-9d7d-4e4d-af3a-9d5a1c6e4d04
           role: user
           text: 'Assessment data (claim, policy, and eligibility rules):
@@ -376,7 +400,7 @@ workflow:
       positionAbsolute:
         x: 986
         y: 282
-      selected: false
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -437,7 +461,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: 156.94637982169365
-      y: 56.031350497954804
-      zoom: 0.8923248169227207
+      x: -741.5325734862508
+      y: 200.00723614464184
+      zoom: 0.8588735087587673
   rag_pipeline_variables: []

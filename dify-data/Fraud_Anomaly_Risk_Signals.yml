@@ -182,7 +182,7 @@ workflow:
       positionAbsolute:
         x: 80
         y: 282
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -267,9 +267,9 @@ workflow:
         code: "import json\n\ndef main(claim_body):\n    try:\n        data = json.loads(claim_body)\n\
           \    except Exception:\n        data = []\n    if isinstance(data, list)\
           \ and data:\n        claim = data[0]\n    elif isinstance(data, dict):\n\
-          \        claim = data\n    else:\n        claim = {}\n    return {\n \
-          \       \"customer_id\": claim.get(\"customer_id\", \"\"),\n        \"\
-          claim_json\": json.dumps(claim, ensure_ascii=False)\n    }"
+          \        claim = data\n    else:\n        claim = {}\n    return {\n   \
+          \     \"customer_id\": claim.get(\"customer_id\", \"\"),\n        \"claim_json\"\
+          : json.dumps(claim, ensure_ascii=False)\n    }"
         code_language: python3
         outputs:
           claim_json:
@@ -350,15 +350,26 @@ workflow:
         prompt_template:
         - id: 2b1e1a2b-6a4a-4b1a-9c0e-6a2e8f3b1a01
           role: system
-          text: 'You are a fraud/anomaly detection assistant for insurance claims.
-            You will be given the current claim being assessed and a JSON list
-            of the same customer''s other claims history. Identify suspicious patterns
-            such as: multiple claims filed in a short time window, a claim filed
-            shortly after policy inception, claim amounts unusually close to the
-            sum assured limit, inconsistent or escalating claim amounts across the
-            customer''s history, or repeated claims of the same category. Do not
-            make a coverage recommendation — your only job is to flag anomaly risk
-            for a human investigator to review.'
+          text: "You are a fraud/anomaly detection assistant for insurance claims.\
+            \ You will be given the current claim being assessed and a JSON list of\
+            \ the same customer's other claims history.\n\nHaving multiple claims\
+            \ over the life of a policy is normal and NOT by itself suspicious — most\
+            \ customers\nwith a long-running policy will file more than one claim\
+            \ over several years. Only flag a signal if there is a genuinely concrete\
+            \ anomalous pattern, such as:\n- Two or more claims on the same policy\
+            \ filed within a short window of each other (as a guideline, within\n\
+            \  about 30 days) — genuine clustering, not just \"more than one claim\
+            \ total\"\n- A claim filed shortly (e.g. within ~90 days) after policy\
+            \ inception\n- A claim amount unusually close to or exceeding the sum\
+            \ assured limit\n- A clear, sharp escalation in claim severity/amount\
+            \ without an obvious explanation\n- Near-identical or duplicate-looking\
+            \ claims (same category, same approximate dates)\n\nIf none of these concrete\
+            \ patterns are present — for example, if the customer's other claims are\
+            \ spread over months or years with no clustering — set risk_level to LOW\
+            \ and recommended_action to proceed_normally. Do\nnot flag a customer\
+            \ merely for having more than one claim in their history. Do not make\
+            \ a coverage recommendation, your only job is to flag anomaly risk for\
+            \ a human investigator to review."
         - id: 3c2f2b3c-7b5b-4c2b-8d1f-7b3f9a4c2b02
           role: user
           text: 'Current claim being assessed (target claim_id: {{#1783200010002.resolved_claim_id#}}):
@@ -480,7 +491,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: 156.94637982169365
-      y: 56.031350497954804
-      zoom: 0.8923248169227207
+      x: 136.5707565247186
+      y: 257.1419080403033
+      zoom: 0.6406772545738532
   rag_pipeline_variables: []
