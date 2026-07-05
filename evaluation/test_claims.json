@@ -1,0 +1,202 @@
+{
+  "_meta": {
+    "description": "Ground truth for the 4-strategy (Direct/CoT/Structured/Combined) recommendation-accuracy research study. 5 claims per policy type: clean APPROVE, clean REJECT, REFER (where genuinely still applicable), edge case, domain-mismatch test.",
+    "methodology_notes": [
+      "Every entry was verified against live /assessment data (mandatory-rule math), not just the stored claims.status/rejection_reason text — those frequently don't match what the current policy/claim data actually supports (see PROJECT_CONTEXT.md data-quality caveat, discovered via CoT_Research testing 2026-07-05/06).",
+      "3 of 4 policy types originally had a mandatory rule that could never be confirmed passing from available data alone (health RULE-HE-004/005, CI RULE-CI-006, disability RULE-DI-004/006/007) — fixed 2026-07-06 by adding claims.diagnosis, claims.condition_is_pre_existing, and claim_documents.content_summary. Life needed no equivalent fix (its only document-dependent rule, RULE-LI-005, is conditional on claim_category == accidental_death).",
+      "2026-07-06 (later same day): extended the fix to a full dataset backfill (backfill_claim_evidence.py) — diagnosis/condition_is_pre_existing for all ~1034 health claims, a specialist_medical_report for all 83 CI claims, a medical_report (+ proof_of_occupation for the 112 occupational_disability ones) for all 353 disability claims, a police/coroner report for all 18 life accidental_death claims, and real facility names in all health claims.notes. Deliberately injects realistic negative diversity, not blanket approval: condition_is_pre_existing is weighted ~15% True (fails RULE-HE-005 on its own), and disability medical reports leave the self-inflicted question ambiguous ~10% of the time (fails RULE-DI-007 on its own) — both independent of the policy-status/waiting-period/sum-assured/survival-period diversity that already existed dataset-wide.",
+      "Consequence of the full backfill: REFER_FOR_FURTHER_REVIEW became rare, because the 'document/data genuinely missing' scenario that used to justify it no longer exists once every claim has real supporting evidence. 4 entries that were REFER before the full backfill (life_refer, health_refer, ci_refer, and the original disability_edge candidate) now correctly resolve to APPROVE and were updated below to reflect that — re-verified programmatically against live /assessment data (see reverify_test_claims.py logic) after the backfill ran, not just reasoned about in the abstract. disability_refer (CLM-0248) is the one entry that stays genuinely REFER, via the deliberately-ambiguous self-inflicted-confirmation mechanism above — this is realistic: once documentation is complete, REFER should be rare and reserved for genuine judgment calls, not missing paperwork.",
+      "life_refer/health_refer/ci_refer's new scenario is a different, still-valuable test: the claim is nominally 'pending'/'under_review' in the DB, but the actual evidence fully supports APPROVE — this tests whether a strategy trusts the real data over a stale/non-final status label, rather than testing document-ambiguity handling.",
+      "domain_mismatch entries are only meaningful for the 'combined' strategy (the only condition that calls a domain-specific production *_Assess_Claim workflow) — Direct/CoT/Structured_Research are domain-agnostic generic apps, so there is no 'wrong workflow' to call them through. See applicable_strategies on those entries."
+    ]
+  },
+  "test_claims": [
+    {
+      "test_id": "life_approve",
+      "policy_type": "life",
+      "claim_id": "CLM-0012",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Clean approve — death claim, all mandatory rules pass. Category is not accidental_death, so RULE-LI-005 (the only document-dependent life rule) doesn't apply. No fix needed."
+    },
+    {
+      "test_id": "life_reject",
+      "policy_type": "life",
+      "claim_id": "CLM-0007",
+      "expected_recommendation": "REJECT",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Policy lapsed at time of incident (RULE-LI-002). Confirmed independently by CoT_Research, Structured_Research, and a real logged assessment_logs entry. Stored DB status was under_review — REJECT is the correct outcome given the current policy state, not the DB label."
+    },
+    {
+      "test_id": "life_refer",
+      "policy_type": "life",
+      "claim_id": "CLM-0052",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Updated 2026-07-06 after the full dataset backfill: this accidental_death claim now has a coroner_report in claim_documents (RULE-LI-005 resolved) and all other rules pass. DB status is still 'pending' (not yet closed), but the actual evidence fully supports APPROVE — tests whether a strategy trusts the real data over a stale, non-final DB status label rather than defaulting to caution just because the claim hasn't been formally closed."
+    },
+    {
+      "test_id": "life_edge",
+      "policy_type": "life",
+      "claim_id": "CLM-0630",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Sum-assured boundary case — claim amount is 82.3% of sum assured, the closest available non-accidental_death life claim to the limit in this dataset (life claims generally aren't close to either the waiting-period or sum-assured boundary). All rules pass cleanly; no document-dependent rule applies (category is total_permanent_disability)."
+    },
+    {
+      "test_id": "life_mismatch",
+      "policy_type": "life",
+      "claim_id": "CLM-0012",
+      "assess_via_domain": "health",
+      "expected_recommendation": "ERROR_OR_GRACEFUL_REJECT",
+      "expected_confidence": null,
+      "applicable_strategies": ["combined"],
+      "scenario": "Synthetic domain-mismatch test — a real life claim_id deliberately assessed via Health_Assess_Claim. Expected outcome is a graceful reject/error (e.g. eligibility_rules fetched for the wrong policy_type), not a real assessment. Only meaningful for 'combined', which is the only condition tied to a specific domain workflow."
+    },
+
+    {
+      "test_id": "health_approve",
+      "policy_type": "health",
+      "claim_id": "CLM-0008",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Clean approve — fixed 2026-07-06: claims.notes rewritten to explicitly name an approved facility (resolves RULE-HE-004, previously unverifiable for every health claim since notes was Faker filler text), and diagnosis/condition_is_pre_existing set to resolve RULE-HE-005 (previously unverifiable for every health claim — no field existed anywhere for diagnosis or pre-existing-condition status). Verified via CoT_Research after the fix: all 6 rules PASS."
+    },
+    {
+      "test_id": "health_reject",
+      "policy_type": "health",
+      "claim_id": "CLM-0308",
+      "expected_recommendation": "REJECT",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Policy terminated at time of incident (RULE-HE-002) — one of the few claims in this dataset where the stored rejection_reason ('Policy was lapsed at time of incident') actually matches the real cause."
+    },
+    {
+      "test_id": "health_refer",
+      "policy_type": "health",
+      "claim_id": "CLM-0057",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Updated 2026-07-06 after the full dataset backfill: notes now name a real facility (RULE-HE-004 resolved) and condition_is_pre_existing is False (RULE-HE-005 resolved), so all rules pass. DB status is still 'under_review' (not yet closed), but the actual evidence fully supports APPROVE — same 'trust the data over a stale status label' test as life_refer/ci_refer. Also used as a Missing_Documentation_Advisor test case this session (that app checks a different endpoint/question and is unaffected by this change)."
+    },
+    {
+      "test_id": "health_edge",
+      "policy_type": "health",
+      "claim_id": "CLM-0912",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Sum-assured boundary case — claim amount is 95.0% of sum assured, very close to the coverage limit but still under it. Updated 2026-07-06: after the full backfill this claim also has a real facility in notes and a non-pre-existing condition, so RULE-HE-004/005 now resolve cleanly too — this isolates the sum-assured boundary as the only thing being tested, rather than compounding it with unrelated unconfirmed rules."
+    },
+    {
+      "test_id": "health_mismatch",
+      "policy_type": "health",
+      "claim_id": "CLM-0008",
+      "assess_via_domain": "life",
+      "expected_recommendation": "ERROR_OR_GRACEFUL_REJECT",
+      "expected_confidence": null,
+      "applicable_strategies": ["combined"],
+      "scenario": "Synthetic domain-mismatch test — a real health claim_id deliberately assessed via Life_Assess_Claim. Expected outcome is a graceful reject/error, not a real assessment."
+    },
+
+    {
+      "test_id": "ci_approve",
+      "policy_type": "critical_illness",
+      "claim_id": "CLM-0278",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Clean approve — fixed 2026-07-06: seeded a specialist_medical_report with a content_summary confirming the heart_attack diagnosis, resolving RULE-CI-006 (previously unverifiable — claim_documents had no content field, so a document's mere presence couldn't confirm what it certified). Survival period is a comfortable 52 days (well past the 30-day minimum), deliberately avoiding the boundary CLM-0134 sits on. Verified via CoT_Research after the fix: all 6 rules PASS."
+    },
+    {
+      "test_id": "ci_reject",
+      "policy_type": "critical_illness",
+      "claim_id": "CLM-0072",
+      "expected_recommendation": "REJECT",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Policy lapsed at time of incident (RULE-CI-002). Stored rejection_reason ('Insufficient supporting documents provided') doesn't match this real cause — REJECT still holds on the policy-status basis alone."
+    },
+    {
+      "test_id": "ci_refer",
+      "policy_type": "critical_illness",
+      "claim_id": "CLM-0049",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Updated 2026-07-06 after the full dataset backfill: this stroke claim now has a specialist_medical_report in claim_documents (RULE-CI-006 resolved) and all other rules pass. DB status is still 'under_review' (not yet closed), but the actual evidence fully supports APPROVE — same 'trust the data over a stale status label' test as life_refer/health_refer. Extensively tested earlier this session (pre-backfill) across Direct/CoT/Structured_Research and Missing_Documentation_Advisor, which all correctly treated it as unresolved at the time — that earlier behavior was correct given the data available then."
+    },
+    {
+      "test_id": "ci_edge",
+      "policy_type": "critical_illness",
+      "claim_id": "CLM-0134",
+      "expected_recommendation": "REJECT",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Naturally-occurring edge case, discovered while testing (not deliberately constructed): survival period is exactly 29 days, one day short of the mandatory 30-day minimum (RULE-CI-004). Originally selected as the clean-APPROVE candidate; CoT_Research correctly caught the boundary miss, so it was re-purposed here instead. Has a seeded specialist_medical_report (RULE-CI-006 passes cleanly), which isolates the survival-period boundary as the sole failure — a clean single-cause edge case."
+    },
+    {
+      "test_id": "ci_mismatch",
+      "policy_type": "critical_illness",
+      "claim_id": "CLM-0278",
+      "assess_via_domain": "disability",
+      "expected_recommendation": "ERROR_OR_GRACEFUL_REJECT",
+      "expected_confidence": null,
+      "applicable_strategies": ["combined"],
+      "scenario": "Synthetic domain-mismatch test — a real critical_illness claim_id deliberately assessed via Disability_Assess_Claim. Expected outcome is a graceful reject/error, not a real assessment."
+    },
+
+    {
+      "test_id": "disability_approve",
+      "policy_type": "disability",
+      "claim_id": "CLM-0006",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Clean approve — fixed 2026-07-06: seeded a medical_report with content_summary explicitly stating the incident was accidental and not self-inflicted (resolves RULE-DI-007, previously unverifiable for every disability claim since claim_documents had no content field), plus a proof_of_occupation document (resolves RULE-DI-006, category-gated to occupational_disability). Verified via CoT_Research after the fix: all 7 rules PASS. Also reused as the Fraud/Anomaly Risk Signals negative control this session (2 claims, 922 days apart — genuinely low risk, correctly scored LOW/proceed_normally)."
+    },
+    {
+      "test_id": "disability_reject",
+      "policy_type": "disability",
+      "claim_id": "CLM-0612",
+      "expected_recommendation": "REJECT",
+      "expected_confidence": "HIGH",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Policy terminated at time of incident (RULE-DI-002). Stored rejection_reason ('Claim amount exceeds sum assured') doesn't match the real numbers (29,602.38 well under sum assured 76,000) — REJECT still holds on the policy-status basis alone, independent of the mismatched reason text."
+    },
+    {
+      "test_id": "disability_refer",
+      "policy_type": "disability",
+      "claim_id": "CLM-0248",
+      "expected_recommendation": "REFER_FOR_FURTHER_REVIEW",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Under_review occupational_disability claim. Has a seeded medical_report but deliberately without a content_summary (RULE-DI-007 unconfirmed) and no proof_of_occupation document (RULE-DI-006 unmet). Already tested via Missing_Documentation_Advisor this session, which correctly identified proof_of_occupation as the missing item without re-requesting the medical report."
+    },
+    {
+      "test_id": "disability_edge",
+      "policy_type": "disability",
+      "claim_id": "CLM-0724",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence": "MEDIUM",
+      "applicable_strategies": ["direct", "cot", "structured", "combined"],
+      "scenario": "Sum-assured boundary case — occupational_disability claim, amount is 94.4% of sum assured, very close to the coverage limit but still under it. Verified against live /assessment data after the full backfill: all rules pass, including the document-dependent ones (medical_report + proof_of_occupation both present, self-inflicted confirmed). Replaces an earlier disability_edge candidate (CLM-0019) that turned out to be factually wrong in the original write-up — CLM-0019's policy was actually active (per CoT_Research's original rule-by-rule breakdown), not terminated as first stated here; its real failing rules were the (pre-backfill) unconfirmed document rules, which the full backfill has since resolved, so it no longer serves as a useful edge case at all."
+    },
+    {
+      "test_id": "disability_mismatch",
+      "policy_type": "disability",
+      "claim_id": "CLM-0006",
+      "assess_via_domain": "critical_illness",
+      "expected_recommendation": "ERROR_OR_GRACEFUL_REJECT",
+      "expected_confidence": null,
+      "applicable_strategies": ["combined"],
+      "scenario": "Synthetic domain-mismatch test — a real disability claim_id deliberately assessed via CI_Assess_Claim. Expected outcome is a graceful reject/error, not a real assessment."
+    }
+  ]
+}

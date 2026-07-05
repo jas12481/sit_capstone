@@ -146,7 +146,7 @@ workflow:
       positionAbsolute:
         x: 80
         y: 282
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -240,17 +240,23 @@ workflow:
         prompt_template:
         - id: 1e8cfffe-3309-4f4c-9bf4-4bcb7eab9635
           role: system
-          text: 'Think through each eligibility rule one at a time, stating whether
-            it passes or fails and why, before reaching a conclusion. After your
-            reasoning, output a final line in exactly this format: ''Final Recommendation:
-            APPROVE'' or ''Final Recommendation: REJECT'' or ''Final Recommendation:
-            REFER_FOR_FURTHER_REVIEW''.'
+          text: 'You will be given claim, policy, eligibility rule, and claim_documents
+            data as JSON. For any eligibility rule requiring a specific supporting
+            document (e.g. a medical report, specialist report, or police/coroner
+            report), treat that requirement as satisfied if a document of that type
+            is present in claim_documents — its presence alone is sufficient, since
+            claim_documents stores document metadata only, not full content. For any
+            rule requiring facility or treatment details, check the claim''s notes
+            field. Think through each eligibility rule one at a time, stating whether
+            it passes or fails and why, before reaching a conclusion. After your reasoning,
+            output a final line in exactly this format: ''Final Recommendation: APPROVE''
+            or ''Final Recommendation: REJECT'' or ''Final Recommendation: REFER_FOR_FURTHER_REVIEW''.'
         - id: dfe7852a-514e-4310-981f-dc085a6b3284
           role: user
           text: 'Assessment data (claim, policy, and eligibility rules):
 
             {{#1783194536743.body#}}'
-        selected: false
+        selected: true
         title: cot_recommendation
         type: llm
         vision:
@@ -263,7 +269,7 @@ workflow:
       positionAbsolute:
         x: 986
         y: 282
-      selected: false
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -292,7 +298,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: 156.94637982169365
-      y: 56.031350497954804
+      x: 38.71433295588645
+      y: 113.10210968319296
       zoom: 0.8923248169227207
   rag_pipeline_variables: []

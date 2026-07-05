@@ -257,6 +257,8 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `assigned_officer` | TEXT | |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMP | |
+| `diagnosis` | TEXT | **Added 2026-07-06** — plain-language diagnosis/condition for the claim. Needed because `RULE-HE-005` (Pre-existing Condition Exclusion) requires knowing what the condition actually is; originally there was no field anywhere in the schema for this, making the rule permanently unverifiable regardless of any other data. Nullable — most claims still won't have it populated. |
+| `condition_is_pre_existing` | BOOLEAN | **Added 2026-07-06** — resolves `RULE-HE-005` definitively once set. Nullable — absence means "unknown," which a careful assessor should still treat as unable to confirm the rule, not as a pass. |
 
 **Claim categories:**
 - life: death, accidental_death, total_permanent_disability
@@ -273,6 +275,7 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `document_name` | TEXT | |
 | `pdf_url` | TEXT | |
 | `uploaded_at` | TIMESTAMP | |
+| `content_summary` | TEXT | **Added 2026-07-06** — plain-text summary of what the document actually states. Without this, this table only ever stored metadata (type/name/url), so a rule like `RULE-DI-007` ("incident must not be self-inflicted **as stated in medical report**") could never be confirmed no matter which document type was present — presence alone can't satisfy a rule that depends on document content. Nullable — most rows still won't have it. |
 
 ### `eligibility_rules`
 | Column | Type | Notes |

@@ -158,7 +158,7 @@ workflow:
       positionAbsolute:
         x: 80
         y: 282
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -252,9 +252,15 @@ workflow:
         prompt_template:
         - id: 1e8cfffe-3309-4f4c-9bf4-4bcb7eab9635
           role: system
-          text: 'You are evaluating an insurance claim. You will be given claim,
-            policy, and eligibility rule data as JSON. Do not explain your reasoning.
-            Respond only in the required structured JSON format.'
+          text: You are evaluating an insurance claim. You will be given claim, policy,
+            eligibility rule, and claim_documents data as JSON. For any eligibility
+            rule requiring a specific supporting document (e.g. a medical report,
+            specialist report, or police/coroner report), treat that requirement as
+            satisfied if a document of that type is present in claim_documents — its
+            presence alone is sufficient, since claim_documents stores document metadata
+            only, not full content. For any rule requiring facility or treatment details,
+            check the claim's notes field. Do not explain your reasoning. Respond
+            only in the required structured JSON format.
         - id: dfe7852a-514e-4310-981f-dc085a6b3284
           role: user
           text: 'Assessment data (claim, policy, and eligibility rules):
@@ -359,7 +365,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: 156.94637982169365
-      y: 56.031350497954804
+      x: -28.767761754775165
+      y: 205.10210968319302
       zoom: 0.8923248169227207
   rag_pipeline_variables: []
