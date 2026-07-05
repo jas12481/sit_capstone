@@ -336,16 +336,7 @@ workflow:
             If a required document is already present in the submitted list, do not
             list it as missing. Set all_requirements_met to true only if there are
             zero missing documents, and false otherwise. Do not recommend approval
-            or rejection — your only job is to list missing documentation.
-
-
-            Update the LLM node''s system prompt and re-run the same 3 tests. What
-            I want to see: CLM-0290 should come back with zero or near-zero missing
-            documents (police report already covers the only real life-type doc rule),
-            CLM-0248 should still find proof_of_occupation but drop the fabricated
-            clauses, and CLM-0049 should stay exactly as good as it already is.
-
-            '
+            or rejection — your only job is to list missing documentation.'
         - id: 5e4a4d5e-9d7d-4e4d-af3a-9d5a1c6e4d04
           role: user
           text: 'Assessment data (claim, policy, and eligibility rules):
@@ -400,7 +391,7 @@ workflow:
       positionAbsolute:
         x: 986
         y: 282
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -461,7 +452,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: -741.5325734862508
-      y: 200.00723614464184
+      x: -176.53257348625084
+      y: 201.00723614464184
       zoom: 0.8588735087587673
   rag_pipeline_variables: []
