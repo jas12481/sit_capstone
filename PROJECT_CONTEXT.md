@@ -1,7 +1,7 @@
 # AIA Capstone Project — Full Context Document
 > **For:** Claude Code and any AI assistant picking up this project  
 > **Author:** Jasbir Kaur (2302990), Applied Computing (FinTech), Singapore Institute of Technology  
-> **Last updated:** 2 July 2026 (active build log)
+> **Last updated:** 6 July 2026 (active build log)
 
 ---
 
@@ -591,18 +591,36 @@ GITHUB_REPO=jas12481/sit_capstone
 
 ### Prompt Registry Naming Convention
 ```
-{workflow_type}_{node_name}_v{version}
-
-life_classify_intent_v1.0       life_rule_check_v1.0
-life_policy_analysis_v1.0       life_synthesise_verdict_v1.0
-life_judge_v1.0                 health_rule_check_v1.0
-health_policy_analysis_v1.0     health_synthesise_verdict_v1.0
-health_judge_v1.0               ci_rule_check_v1.0
-ci_policy_analysis_v1.0         ci_synthesise_verdict_v1.0
-ci_judge_v1.0                   disability_rule_check_v1.0
-disability_policy_analysis_v1.0 disability_synthesise_verdict_v1.0
-disability_judge_v1.0
+workspace.default.{workflow_name}_{node_name}_v1_0
 ```
+Actual registered examples (from `evaluation/register_prompts.py`, run 2026-07-06 — 79 prompts,
+covering all 16 production workflows plus the 6 new apps):
+```
+workspace.default.life_assess_claim_rule_by_rule_eligibility_check_v1_0
+workspace.default.life_assess_claim_policy_document_analysis_v1_0
+workspace.default.life_assess_claim_synthesize_final_verdict_v1_0
+workspace.default.life_assess_claim_llm_judge_v1_0
+workspace.default.health_assess_claim_rule_by_rule_eligibility_check_v1_0
+... (same pattern per policy type: rule_by_rule_eligibility_check / policy_document_analysis /
+    synthesize_final_verdict / llm_judge / extract_response_focus_assess / format_final_report /
+    build_assessment_suggestion_context, plus the equivalent nodes in each *_Claim_Details /
+    *_Policy_Details / *_Claim_and_Policy_Details workflow, plus Test_Orchestrator-1's 8 nodes,
+    plus the 6 new apps' nodes e.g. workspace.default.cot_research_cot_recommendation_v1_0)
+```
+This corrects two things discovered during implementation, not just cosmetic:
+1. **The registry is Unity Catalog-backed**, which requires fully-qualified 3-level names
+   (`catalog.schema.name`) — a bare name is rejected by the API with a misleading
+   `INVALID_PARAMETER_VALUE: name is not a valid name` error that reads like a character-set
+   complaint but is actually about the missing catalog/schema prefix. `workspace.default` is the
+   catalog/schema used (confirmed working against the live registry).
+2. **Periods are rejected within a name segment** (`"...cannot contain spaces, periods, forward
+   slashes, or control characters"`), so the version suffix is `_v1_0`, not `_v1.0` as originally
+   drafted — the underscore form is a technical requirement, not a style choice.
+3. The node names use the *actual* Dify node titles as they exist in the YAML (e.g.
+   `rule_by_rule_eligibility_check`), not the shorter illustrative names originally sketched here
+   (e.g. `rule_check`) — `register_prompts.py` is fully mechanical/generic (walks every `llm`-type
+   node via `dsl_manager.parser.parse_workflow()`, no per-node hand-mapping table to maintain), which
+   was the explicit design goal so it keeps working automatically as new workflows/nodes are added.
 
 When prompts are updated via DSL Change Management, increment version. Log `prompt_version` to `assessment_logs`.
 
@@ -961,7 +979,9 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | Disability_Claim_and_Policy_Details workflow | ✅ Done | |
 | Disability_Assess_Claim workflow | ✅ Done | |
 | Orchestrator Chatbot | ✅ Done | Test_Orchestrator_1-7.yml (69 nodes); all test cases pass; CLM-only domain routing resolved via /claims/domain; followup/intent/router prompts calibrated |
-| MLflow Prompt Registry | 🔲 To build | Register all current prompts as v1.0 |
+| 3 new product-capability Dify apps | ✅ Done | `Explain_Assessment_Reasoning` (dual-mode: explains a logged verdict, or does a fresh walkthrough if none exists), `Fraud_Anomaly_Risk_Signals`, `Missing_Documentation_Advisor` — each independently valuable, none produce an APPROVE/REJECT/REFER recommendation. Built manually in Dify UI from generated DSL, imported, tested against real claim data; prompts recalibrated once each (Fraud app was over-flagging any 2+-claim customer; Missing Docs app was hallucinating non-existent rule IDs for generic real-world doc requirements) |
+| 3 new research-only Dify apps | ✅ Done | `Direct_Research`, `CoT_Research`, `Structured_Research` — minimal single-LLM-node apps isolating the 2×2 (reasoning × structure) design for the prompting-strategy study; Combined reuses the existing 4 production `*_Assess_Claim` workflows unchanged |
+| MLflow Prompt Registry | ✅ Done | `evaluation/register_prompts.py` — 79 LLM prompts registered as `workspace.default.{workflow}_{node}_v1_0` (UC-qualified naming, see §12) |
 | Evaluation script (80 runs) | 🟨 In progress | Structure defined; full execution pending |
 | dsl_manager/ (parser, diff, approvals, git) | ✅ Done | parser, diff, approvals, git_commit, __main__ CLI |
 | evaluation/prompt_advisor.py | 🔲 To build | Reads MLflow, proposes improvements |
@@ -1005,4 +1025,4 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 ---
 
-*Last updated: 2 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*
+*Last updated: 6 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*

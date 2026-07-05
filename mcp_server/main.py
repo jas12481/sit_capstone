@@ -139,10 +139,17 @@ def get_assessment_data(claim_id: str = Query(...)):
 
     rules_response = supabase.table("eligibility_rules").select("*").eq("policy_type", claim["claim_type"]).execute()
 
+    # Included so any consumer of this endpoint can check document-dependent mandatory
+    # rules (e.g. "medical report must be included in claim documents") — without this,
+    # such rules can never be confirmed as satisfied, since claim_documents was otherwise
+    # only reachable via the separate /claim-documents endpoint.
+    documents_response = supabase.table("claim_documents").select("*").eq("claim_id", claim_id).execute()
+
     return {
         "claim": claim,
         "policy": policy,
-        "eligibility_rules": rules_response.data
+        "eligibility_rules": rules_response.data,
+        "claim_documents": documents_response.data or []
     }
 
 # ── CLAIM DOCUMENTS ───────────────────────────────────────────────────────────
