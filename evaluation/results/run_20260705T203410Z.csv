@@ -1,0 +1,5 @@
+actual,claim_id,confidence,correct,expected,hallucinated_rule_count,mlflow_run_id,policy_type,run_name,strategy,test_id
+ERROR,CLM-0012,,False,APPROVE,0,1aa6c16d2a254aa4a07e1787ffa88221,life,direct_life_CLM-0012,direct,life_approve
+ERROR,CLM-0012,,False,APPROVE,0,18626ad4be3a437596073016156b5a13,life,cot_life_CLM-0012,cot,life_approve
+ERROR,CLM-0012,,False,APPROVE,0,3010349c573d409799caae30ec55245d,life,structured_life_CLM-0012,structured,life_approve
+ERROR,CLM-0012,,False,APPROVE,0,b65bc55b8f0c4b8788b96dc2e84fab8d,life,combined_life_CLM-0012,combined,life_approve

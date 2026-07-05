@@ -275,6 +275,30 @@ workflow:
       targetHandle: target
       type: custom
       zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1780461414069-source-1783700010200-target
+      source: '1780461414069'
+      sourceHandle: source
+      target: '1783700010200'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1783700010200-source-1779201495095-target
+      source: '1783700010200'
+      sourceHandle: source
+      target: '1779201495095'
+      targetHandle: target
+      type: custom
+      zIndex: 0
     nodes:
     - data:
         selected: false
@@ -390,20 +414,18 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and\
-          \ v:\n        return v[0]\n    if isinstance(v, dict):\n        return v\n\
-          \    if isinstance(v, str):\n        try:\n            obj = json.loads(v)\n\
-          \            if isinstance(obj, list) and obj:\n                return obj[0]\n\
-          \            if isinstance(obj, dict):\n                return obj\n   \
-          \     except Exception:\n            return {}\n    return {}\n\ndef main(claim_body):\n\
-          \    c = _first_record(claim_body)\n    return {\n        \"claim_id_from_data\"\
-          : c.get(\"claim_id\", \"\"),\n        \"policy_id_from_claim\": c.get(\"\
-          policy_id\", \"\"),\n        \"claim_status\": c.get(\"status\", \"\"),\n\
-          \        \"claim_type\": c.get(\"claim_type\", \"\"),\n        \"claim_category\"\
-          : c.get(\"claim_category\", \"\"),\n        \"claim_amount\": \"\" if c.get(\"\
-          claim_amount\") is None else str(c.get(\"claim_amount\")),\n        \"incident_date\"\
-          : c.get(\"incident_date\", \"\"),\n        \"claim_record_json\": json.dumps(c,\
-          \ ensure_ascii=False)\n    }"
+        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and v:\n        return\
+          \ v[0]\n    if isinstance(v, dict):\n        return v\n    if isinstance(v, str):\n        try:\n\
+          \            obj = json.loads(v)\n            if isinstance(obj, list) and obj:\n          \
+          \      return obj[0]\n            if isinstance(obj, dict):\n                return obj\n  \
+          \      except Exception:\n            return {}\n    return {}\n\ndef main(claim_body):\n  \
+          \  c = _first_record(claim_body)\n    return {\n        \"claim_id_from_data\": c.get(\"claim_id\"\
+          , \"\"),\n        \"policy_id_from_claim\": c.get(\"policy_id\", \"\"),\n        \"claim_status\"\
+          : c.get(\"status\", \"\"),\n        \"claim_type\": c.get(\"claim_type\", \"\"),\n        \"\
+          claim_category\": c.get(\"claim_category\", \"\"),\n        \"claim_amount\": \"\" if c.get(\"\
+          claim_amount\") is None else str(c.get(\"claim_amount\")),\n        \"incident_date\": c.get(\"\
+          incident_date\", \"\"),\n        \"claim_record_json\": json.dumps(c, ensure_ascii=False)\n\
+          \    }"
         code_language: python3
         outputs:
           claim_amount:
@@ -518,6 +540,17 @@ workflow:
             Do not invent facts.
 
 
+            You will also be given the claim''s submitted supporting documents (claim_documents) as JSON.
+            For any eligibility rule requiring a specific supporting document (e.g. a medical report,
+            specialist report, or police/coroner report), treat that requirement as satisfied if a document
+            of that type is present in claim_documents — its presence alone is sufficient, since claim_documents
+            stores document metadata only, not full content. For any rule requiring facility or treatment
+            details, check the claim record''s notes field. If the claim record''s condition_is_pre_existing
+            field is explicitly false, treat any pre-existing-condition exclusion rule as satisfied (the
+            condition is confirmed not pre-existing, so no further underwriting declaration is needed);
+            if true or not stated, treat it as unable to confirm.
+
+
             For each rule:
 
             - determine pass/fail/unknown
@@ -545,6 +578,11 @@ workflow:
             Eligibility rules:
 
             {{#17792013939140.body#}}
+
+
+            Submitted claim documents:
+
+            {{#1783700010200.body#}}
 
 
             Run a rule-by-rule eligibility check and return structured output only.'
@@ -625,8 +663,7 @@ workflow:
           text: 'You are a policy document analyst for claims assessment.
 
 
-            Identify clauses, exclusions, and documentary requirements relevant to
-            this claim.
+            Identify clauses, exclusions, and documentary requirements relevant to this claim.
 
             Return only structured JSON.
 
@@ -708,37 +745,31 @@ workflow:
         prompt_template:
         - id: fb22954a-03fb-4e56-9799-b0933358f659
           role: system
-          text: "You are the final claims assessment synthesizer for health claims.\n\
-            \nYour task:\nCombine claim data, policy data, rule-check output, and\
-            \ policy-analysis output into one final structured verdict.\n\nCritical\
-            \ constraints:\n1) Return ONLY valid JSON matching the output schema.\n\
-            2) Use only provided facts. Do not invent evidence.\n3) Be decisive using\
-            \ the decision policy below.\n4) Keep recommendation token strict: APPROVE,\
-            \ REJECT, or REFER_FOR_FURTHER_REVIEW only.\n5) Keep confidence_level\
-            \ token strict: LOW, MEDIUM, HIGH only.\n6) Keep coverage_conclusion token\
-            \ strict: CLEARLY_COVERED, NOT_COVERED, UNCLEAR only.\n\nDecision policy\
-            \ (must follow in order):\nA) If mandatory_rules_failed > 0:\n   - recommendation\
-            \ = REJECT\n   - coverage_conclusion = NOT_COVERED\n\nB) Else if all mandatory\
-            \ rules are PASS and there are no blocking unknowns:\n   - recommendation\
-            \ = APPROVE\n   - coverage_conclusion = CLEARLY_COVERED\n\nC) Else:\n\
-            \   - recommendation = REFER_FOR_FURTHER_REVIEW\n   - coverage_conclusion\
-            \ = UNCLEAR\n\nBlocking unknowns (examples):\n- Mandatory rule result\
-            \ is UNKNOWN\n- Required evidence for claim category is missing (e.g.,\
-            \ accidental_death without police/coroner report)\n- Core in-force determination\
-            \ at relevant event date cannot be established from provided data\n\n\
-            Only treat UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\n\
-            Do not create new blocking unknowns from narrative policy text inconsistencies\
-            \ unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed\
-            \ == 0 and no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT\
-            \ only when at least one mandatory rule is FAIL.\nDo not REJECT on UNKNOWN;\
-            \ use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n- HIGH: strong\
-            \ evidence, no material contradictions, no blocking unknowns\n- MEDIUM:\
-            \ mostly sufficient evidence with limited uncertainty\n- LOW: material\
-            \ uncertainty, contradictions, or major missing evidence\n\nOutput quality\
-            \ rules:\n- key_rationale must be concise and operational.\n- key_risks\
-            \ should be short bullet-like strings.\n- recommended_next_actions should\
-            \ be concrete, executable actions.\n- Do NOT place long rationale text\
-            \ inside enum/token fields."
+          text: "You are the final claims assessment synthesizer for health claims.\n\nYour task:\nCombine\
+            \ claim data, policy data, rule-check output, and policy-analysis output into one final structured\
+            \ verdict.\n\nCritical constraints:\n1) Return ONLY valid JSON matching the output schema.\n\
+            2) Use only provided facts. Do not invent evidence.\n3) Be decisive using the decision policy\
+            \ below.\n4) Keep recommendation token strict: APPROVE, REJECT, or REFER_FOR_FURTHER_REVIEW\
+            \ only.\n5) Keep confidence_level token strict: LOW, MEDIUM, HIGH only.\n6) Keep coverage_conclusion\
+            \ token strict: CLEARLY_COVERED, NOT_COVERED, UNCLEAR only.\n\nDecision policy (must follow\
+            \ in order):\nA) If mandatory_rules_failed > 0:\n   - recommendation = REJECT\n   - coverage_conclusion\
+            \ = NOT_COVERED\n\nB) Else if all mandatory rules are PASS and there are no blocking unknowns:\n\
+            \   - recommendation = APPROVE\n   - coverage_conclusion = CLEARLY_COVERED\n\nC) Else:\n \
+            \  - recommendation = REFER_FOR_FURTHER_REVIEW\n   - coverage_conclusion = UNCLEAR\n\nBlocking\
+            \ unknowns (examples):\n- Mandatory rule result is UNKNOWN\n- Required evidence for claim\
+            \ category is missing (e.g., accidental_death without police/coroner report)\n- Core in-force\
+            \ determination at relevant event date cannot be established from provided data\n\nOnly treat\
+            \ UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\n\
+            Do not create new blocking unknowns from narrative policy text inconsistencies unless they\
+            \ directly change a mandatory rule result.\n\nIf mandatory_rules_failed == 0 and no mandatory\
+            \ rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least one mandatory rule\
+            \ is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n\
+            - HIGH: strong evidence, no material contradictions, no blocking unknowns\n- MEDIUM: mostly\
+            \ sufficient evidence with limited uncertainty\n- LOW: material uncertainty, contradictions,\
+            \ or major missing evidence\n\nOutput quality rules:\n- key_rationale must be concise and\
+            \ operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
+            \ should be concrete, executable actions.\n- Do NOT place long rationale text inside enum/token\
+            \ fields."
         - id: 7eade8ec-0139-4b40-9997-b9888b4d4177
           role: user
           text: 'Claim record:
@@ -770,14 +801,12 @@ workflow:
 
             - Use mandatory_rules_failed from rule-check unless clearly inconsistent.
 
-            - If recommendation is APPROVE, explain briefly why no blocking unknowns
-            remain.
+            - If recommendation is APPROVE, explain briefly why no blocking unknowns remain.
 
-            - If recommendation is REJECT, identify which mandatory failure(s) drive
-            rejection.
+            - If recommendation is REJECT, identify which mandatory failure(s) drive rejection.
 
-            - If recommendation is REFER_FOR_FURTHER_REVIEW, list the minimum missing
-            items needed to decide.
+            - If recommendation is REFER_FOR_FURTHER_REVIEW, list the minimum missing items needed to
+            decide.
 
             Return JSON only.'
         selected: false
@@ -941,21 +970,18 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and\
-          \ v:\n        return v[0]\n    if isinstance(v, dict):\n        return v\n\
-          \    if isinstance(v, str):\n        try:\n            obj = json.loads(v)\n\
-          \            if isinstance(obj, list) and obj:\n                return obj[0]\n\
-          \            if isinstance(obj, dict):\n                return obj\n   \
-          \     except Exception:\n            return {}\n    return {}\n\ndef _to_str(v):\n\
-          \    return \"\" if v is None else str(v)\n\ndef main(policy_body):\n  \
-          \  p = _first_record(policy_body)\n    return {\n        \"policy_id_from_data\"\
-          : _to_str(p.get(\"policy_id\")),\n        \"policy_status\": _to_str(p.get(\"\
-          status\")),\n        \"policy_type\": _to_str(p.get(\"policy_type\")),\n\
-          \        \"sum_assured\": _to_str(p.get(\"sum_assured\")),\n        \"start_date\"\
-          : _to_str(p.get(\"start_date\")),\n        \"end_date\": _to_str(p.get(\"\
-          end_date\")),\n        \"policy_text\": _to_str(p.get(\"policy_text\")),\n\
-          \        \"policy_summary\": _to_str(p.get(\"policy_summary\")),\n     \
-          \   \"policy_record_json\": json.dumps(p, ensure_ascii=False)\n    }"
+        code: "import json\n\ndef _first_record(v):\n    if isinstance(v, list) and v:\n        return\
+          \ v[0]\n    if isinstance(v, dict):\n        return v\n    if isinstance(v, str):\n        try:\n\
+          \            obj = json.loads(v)\n            if isinstance(obj, list) and obj:\n          \
+          \      return obj[0]\n            if isinstance(obj, dict):\n                return obj\n  \
+          \      except Exception:\n            return {}\n    return {}\n\ndef _to_str(v):\n    return\
+          \ \"\" if v is None else str(v)\n\ndef main(policy_body):\n    p = _first_record(policy_body)\n\
+          \    return {\n        \"policy_id_from_data\": _to_str(p.get(\"policy_id\")),\n        \"policy_status\"\
+          : _to_str(p.get(\"status\")),\n        \"policy_type\": _to_str(p.get(\"policy_type\")),\n \
+          \       \"sum_assured\": _to_str(p.get(\"sum_assured\")),\n        \"start_date\": _to_str(p.get(\"\
+          start_date\")),\n        \"end_date\": _to_str(p.get(\"end_date\")),\n        \"policy_text\"\
+          : _to_str(p.get(\"policy_text\")),\n        \"policy_summary\": _to_str(p.get(\"policy_summary\"\
+          )),\n        \"policy_record_json\": json.dumps(p, ensure_ascii=False)\n    }"
         code_language: python3
         outputs:
           end_date:
@@ -1146,14 +1172,12 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n     \
-          \   return v\n    if isinstance(v, str):\n        try:\n            return\
-          \ json.loads(v)\n        except Exception:\n            return v\n    return\
-          \ v\n\ndef main(answer, suggestion_context):\n    merged = {\n        \"\
-          answer\": answer if isinstance(answer, str) else _to_obj(answer),\n    \
-          \    \"suggestion_context\": _to_obj(suggestion_context)\n    }\n    return\
-          \ {\n        \"merged_json\": json.dumps(merged, ensure_ascii=False)\n \
-          \   }"
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n        return v\n    if isinstance(v,\
+          \ str):\n        try:\n            return json.loads(v)\n        except Exception:\n       \
+          \     return v\n    return v\n\ndef main(answer, suggestion_context):\n    merged = {\n    \
+          \    \"answer\": answer if isinstance(answer, str) else _to_obj(answer),\n        \"suggestion_context\"\
+          : _to_obj(suggestion_context)\n    }\n    return {\n        \"merged_json\": json.dumps(merged,\
+          \ ensure_ascii=False)\n    }"
         code_language: python3
         outputs:
           merged_json:
@@ -1187,10 +1211,9 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
-          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
-          \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
-          \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef _extract_claim_id_from_query(query):\n\
+          \    q = _clean(query)\n    if not q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\\
+          d{3,6})\\b\", q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
           \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
           \    return {\"resolved_claim_id\": resolved}"
         code_language: python3
@@ -1309,31 +1332,26 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def _to_int_str(v, default=\"0\"):\n    try:\n        return str(int(v))\n\
-          \    except Exception:\n        return default\n\ndef _to_float_str(v, default=\"\
-          \"):\n    try:\n        return str(float(v))\n    except Exception:\n  \
-          \      return default\n\ndef _to_str(v, default=\"\"):\n    return default\
-          \ if v is None else str(v)\n\ndef main(\n    claim_id,\n    verdict,\n \
-          \   judge,\n    workflow_type=\"health_assess_claim\",\n    model_version=\"\
-          gpt-5.2\",\n    prompt_version=\"health_assess_claim_v1.0\",\n    mlflow_run_id=\"\
-          \"\n):\n    verdict = verdict or {}\n    judge = judge or {}\n\n    return\
-          \ {\n        \"claim_id\": _to_str(claim_id, \"\"),\n        \"workflow_type\"\
-          : _to_str(workflow_type, \"health_assess_claim\"),\n        \"recommendation\"\
-          : _to_str(verdict.get(\"recommendation\", \"\"), \"\"),\n        \"confidence_level\"\
-          : _to_str(verdict.get(\"confidence_level\", \"\"), \"\"),\n        \"mandatory_rules_failed\"\
-          : _to_int_str(verdict.get(\"mandatory_rules_failed\", 0), \"0\"),\n    \
-          \    \"total_rules_passed\": _to_int_str(verdict.get(\"total_rules_passed\"\
-          , 0), \"0\"),\n        \"coverage_conclusion\": _to_str(verdict.get(\"coverage_conclusion\"\
-          , \"\"), \"\"),\n        \"model_version\": _to_str(model_version, \"gpt-5.2\"\
-          ),\n        \"prompt_version\": _to_str(prompt_version, \"health_assess_claim_v1.0\"\
-          ),\n        \"mlflow_run_id\": _to_str(mlflow_run_id, \"\"),  # avoid None\
-          \ for String output\n        \"judge_completeness_score\": _to_float_str(judge.get(\"\
-          judge_completeness_score\"), \"\"),\n        \"judge_consistency_score\"\
-          : _to_float_str(judge.get(\"judge_consistency_score\"), \"\"),\n       \
-          \ \"judge_hallucination_risk_score\": _to_float_str(judge.get(\"judge_hallucination_risk_score\"\
-          ), \"\"),\n        \"judge_clarity_score\": _to_float_str(judge.get(\"judge_clarity_score\"\
-          ), \"\"),\n        \"judge_overall_score\": _to_float_str(judge.get(\"judge_overall_score\"\
-          ), \"\")\n    }"
+        code: "def _to_int_str(v, default=\"0\"):\n    try:\n        return str(int(v))\n    except Exception:\n\
+          \        return default\n\ndef _to_float_str(v, default=\"\"):\n    try:\n        return str(float(v))\n\
+          \    except Exception:\n        return default\n\ndef _to_str(v, default=\"\"):\n    return\
+          \ default if v is None else str(v)\n\ndef main(\n    claim_id,\n    verdict,\n    judge,\n \
+          \   workflow_type=\"health_assess_claim\",\n    model_version=\"gpt-5.2\",\n    prompt_version=\"\
+          health_assess_claim_v1.0\",\n    mlflow_run_id=\"\"\n):\n    verdict = verdict or {}\n    judge\
+          \ = judge or {}\n\n    return {\n        \"claim_id\": _to_str(claim_id, \"\"),\n        \"\
+          workflow_type\": _to_str(workflow_type, \"health_assess_claim\"),\n        \"recommendation\"\
+          : _to_str(verdict.get(\"recommendation\", \"\"), \"\"),\n        \"confidence_level\": _to_str(verdict.get(\"\
+          confidence_level\", \"\"), \"\"),\n        \"mandatory_rules_failed\": _to_int_str(verdict.get(\"\
+          mandatory_rules_failed\", 0), \"0\"),\n        \"total_rules_passed\": _to_int_str(verdict.get(\"\
+          total_rules_passed\", 0), \"0\"),\n        \"coverage_conclusion\": _to_str(verdict.get(\"coverage_conclusion\"\
+          , \"\"), \"\"),\n        \"model_version\": _to_str(model_version, \"gpt-5.2\"),\n        \"\
+          prompt_version\": _to_str(prompt_version, \"health_assess_claim_v1.0\"),\n        \"mlflow_run_id\"\
+          : _to_str(mlflow_run_id, \"\"),  # avoid None for String output\n        \"judge_completeness_score\"\
+          : _to_float_str(judge.get(\"judge_completeness_score\"), \"\"),\n        \"judge_consistency_score\"\
+          : _to_float_str(judge.get(\"judge_consistency_score\"), \"\"),\n        \"judge_hallucination_risk_score\"\
+          : _to_float_str(judge.get(\"judge_hallucination_risk_score\"), \"\"),\n        \"judge_clarity_score\"\
+          : _to_float_str(judge.get(\"judge_clarity_score\"), \"\"),\n        \"judge_overall_score\"\
+          : _to_float_str(judge.get(\"judge_overall_score\"), \"\")\n    }"
         code_language: python3
         outputs:
           claim_id:
@@ -1422,20 +1440,16 @@ workflow:
           - id: key-value-226
             key: ''
             type: text
-            value: "{\n  \"claim_id\": {{#1781468605100.claim_id#}},\n  \"workflow_type\"\
-              : {{#1781468605100.workflow_type#}},\n  \"recommendation\": {{#1781468605100.recommendation#}},\n\
-              \  \"confidence_level\": {{#1781468605100.confidence_level#}},\n  \"\
-              mandatory_rules_failed\": {{#1781468605100.mandatory_rules_failed#}},\n\
-              \  \"total_rules_passed\": {{#1781468605100.total_rules_passed#}},\n\
-              \  \"coverage_conclusion\": {{#1781468605100.coverage_conclusion#}},\n\
-              \  \"model_version\": {{#1781468605100.model_version#}},\n  \"prompt_version\"\
-              : {{#1781468605100.prompt_version#}},\n  \"mlflow_run_id\": {{#1781468605100.mlflow_run_id#}},\n\
-              \  \"judge_completeness_score\": {{#1781468605100.judge_completeness_score#}},\n\
-              \  \"judge_consistency_score\": {{#1781468605100.judge_consistency_score#}},\n\
+            value: "{\n  \"claim_id\": {{#1781468605100.claim_id#}},\n  \"workflow_type\": {{#1781468605100.workflow_type#}},\n\
+              \  \"recommendation\": {{#1781468605100.recommendation#}},\n  \"confidence_level\": {{#1781468605100.confidence_level#}},\n\
+              \  \"mandatory_rules_failed\": {{#1781468605100.mandatory_rules_failed#}},\n  \"total_rules_passed\"\
+              : {{#1781468605100.total_rules_passed#}},\n  \"coverage_conclusion\": {{#1781468605100.coverage_conclusion#}},\n\
+              \  \"model_version\": {{#1781468605100.model_version#}},\n  \"prompt_version\": {{#1781468605100.prompt_version#}},\n\
+              \  \"mlflow_run_id\": {{#1781468605100.mlflow_run_id#}},\n  \"judge_completeness_score\"\
+              : {{#1781468605100.judge_completeness_score#}},\n  \"judge_consistency_score\": {{#1781468605100.judge_consistency_score#}},\n\
               \  \"judge_hallucination_risk_score\": {{#1781468605100.judge_hallucination_risk_score#}},\n\
-              \  \"judge_clarity_score\": {{#1781468605100.judge_clarity_score#}},\n\
-              \  \"judge_overall_score\": {{#1781468605100.judge_overall_score#}}\n\
-              }"
+              \  \"judge_clarity_score\": {{#1781468605100.judge_clarity_score#}},\n  \"judge_overall_score\"\
+              : {{#1781468605100.judge_overall_score#}}\n}"
           type: json
         headers: Content-Type:application/json
         method: post
@@ -1479,20 +1493,17 @@ workflow:
         prompt_template:
         - id: 6bbde204-0ac9-4e8e-aeef-7e90d9ef29ae
           role: system
-          text: "You are a machine-context generator for downstream follow-up orchestration\
-            \ in a health-claim assessment workflow.\n\nTask:\nGenerate a compact suggestion_context\
-            \ object from:\n- final verdict\n- final report\n- judge output\n\nRules:\n\
-            1) Return ONLY valid JSON matching schema.\n2) Do NOT generate explicit\
-            \ follow-up questions.\n3) Use only facts from inputs.\n4) path_type must\
-            \ be \"ASSESS_CLAIM\".\n5) outcome_type mapping:\n   - recommendation\
-            \ APPROVE -> APPROVE\n   - recommendation REJECT -> REJECT\n   - recommendation\
-            \ REFER_FOR_FURTHER_REVIEW -> REFER_FOR_FURTHER_REVIEW\n   - otherwise\
-            \ -> UNKNOWN\n6) entities.recommendation must be token-only:\n   APPROVE\
-            \ | REJECT | REFER_FOR_FURTHER_REVIEW | UNKNOWN\n   (No extra prose, no\
-            \ confidence text, no rationale text.)\n7) Keep arrays concise and operational:\n\
-            \   - follow_up_themes: 3-6 short topic labels\n   - missing_information:\
-            \ only true missing items\n   - next_decision_points: 2-5 concrete actions\n\
-            8) If policy_id is unavailable, set it to empty string.\n\nOutput must\
+          text: "You are a machine-context generator for downstream follow-up orchestration in a health-claim\
+            \ assessment workflow.\n\nTask:\nGenerate a compact suggestion_context object from:\n- final\
+            \ verdict\n- final report\n- judge output\n\nRules:\n1) Return ONLY valid JSON matching schema.\n\
+            2) Do NOT generate explicit follow-up questions.\n3) Use only facts from inputs.\n4) path_type\
+            \ must be \"ASSESS_CLAIM\".\n5) outcome_type mapping:\n   - recommendation APPROVE -> APPROVE\n\
+            \   - recommendation REJECT -> REJECT\n   - recommendation REFER_FOR_FURTHER_REVIEW -> REFER_FOR_FURTHER_REVIEW\n\
+            \   - otherwise -> UNKNOWN\n6) entities.recommendation must be token-only:\n   APPROVE | REJECT\
+            \ | REFER_FOR_FURTHER_REVIEW | UNKNOWN\n   (No extra prose, no confidence text, no rationale\
+            \ text.)\n7) Keep arrays concise and operational:\n   - follow_up_themes: 3-6 short topic\
+            \ labels\n   - missing_information: only true missing items\n   - next_decision_points: 2-5\
+            \ concrete actions\n8) If policy_id is unavailable, set it to empty string.\n\nOutput must\
             \ be concise, machine-friendly, and deterministic."
         - id: 3dd79ac2-eea4-4a62-baf0-3cdc8ce9aaca
           role: user
@@ -1607,6 +1618,46 @@ workflow:
       positionAbsolute:
         x: 5273.90025683221
         y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: claim_id:{{#1780461414069.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claim_documents_assess
+        type: http-request
+        url: https://sit-capstone.onrender.com/claim-documents
+        variables: []
+      height: 138
+      id: '1783700010200'
+      position:
+        x: 1187.3679059224817
+        y: 1166.279339603383
+      positionAbsolute:
+        x: 1187.3679059224817
+        y: 1166.279339603383
       selected: false
       sourcePosition: right
       targetPosition: left

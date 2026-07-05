@@ -1,0 +1,54 @@
+[
+  {
+    "test_id": "life_approve",
+    "strategy": "direct",
+    "run_name": "direct_life_CLM-0012",
+    "claim_id": "CLM-0012",
+    "policy_type": "life",
+    "expected": "APPROVE",
+    "actual": "REFER_FOR_FURTHER_REVIEW",
+    "correct": false,
+    "hallucinated_rule_count": 0,
+    "confidence": null,
+    "mlflow_run_id": "24a690103da344918ba94f849b228257"
+  },
+  {
+    "test_id": "life_approve",
+    "strategy": "cot",
+    "run_name": "cot_life_CLM-0012",
+    "claim_id": "CLM-0012",
+    "policy_type": "life",
+    "expected": "APPROVE",
+    "actual": "APPROVE",
+    "correct": true,
+    "hallucinated_rule_count": 0,
+    "confidence": null,
+    "mlflow_run_id": "c2f2e185ce0742cca92eff62fa01893f"
+  },
+  {
+    "test_id": "life_approve",
+    "strategy": "structured",
+    "run_name": "structured_life_CLM-0012",
+    "claim_id": "CLM-0012",
+    "policy_type": "life",
+    "expected": "APPROVE",
+    "actual": "APPROVE",
+    "correct": true,
+    "hallucinated_rule_count": 0,
+    "confidence": "HIGH",
+    "mlflow_run_id": "52655c63b3f041d786452888d073b2c7"
+  },
+  {
+    "test_id": "life_approve",
+    "strategy": "combined",
+    "run_name": "combined_life_CLM-0012",
+    "claim_id": "CLM-0012",
+    "policy_type": "life",
+    "expected": "APPROVE",
+    "actual": "APPROVE",
+    "correct": true,
+    "hallucinated_rule_count": 0,
+    "confidence": "HIGH",
+    "mlflow_run_id": "bac1c96ad02e4ea5992f0261c44142ce"
+  }
+]
