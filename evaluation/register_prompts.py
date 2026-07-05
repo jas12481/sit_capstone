@@ -63,13 +63,15 @@ def _init_mlflow() -> None:
     mlflow.set_tracking_uri("databricks")
 
 
-def register_all(dry_run: bool = False) -> None:
+def register_all(dry_run: bool = False, only_files: list[str] | None = None) -> None:
     if not DIFY_DATA_DIR.exists():
         raise FileNotFoundError(f"dify-data/ not found at {DIFY_DATA_DIR}")
 
     yaml_files = sorted(DIFY_DATA_DIR.glob("*.yml"))
+    if only_files:
+        yaml_files = [f for f in yaml_files if f.name in only_files]
     if not yaml_files:
-        raise FileNotFoundError("No .yml files found in dify-data/")
+        raise FileNotFoundError("No matching .yml files found in dify-data/")
 
     if not dry_run:
         _init_mlflow()
@@ -105,7 +107,10 @@ def register_all(dry_run: bool = False) -> None:
                 genai.register_prompt(
                     name=prompt_name,
                     template=node["content"],
-                    commit_message="Initial v1.0 bootstrap from dify-data/ DSL export",
+                    commit_message=(
+                        "Updated from dify-data/ DSL re-export" if only_files
+                        else "Initial v1.0 bootstrap from dify-data/ DSL export"
+                    ),
                     tags={
                         "workflow_name": node["workflow_name"],
                         "node_name": node["node_name"],
@@ -131,8 +136,9 @@ def register_all(dry_run: bool = False) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bootstrap MLflow Prompt Registry from dify-data/*.yml")
     parser.add_argument("--dry-run", action="store_true", help="Preview without calling MLflow")
+    parser.add_argument("--files", nargs="+", help="Only process these dify-data/ filenames (e.g. after a targeted prompt fix)")
     args = parser.parse_args()
-    register_all(dry_run=args.dry_run)
+    register_all(dry_run=args.dry_run, only_files=args.files)
 
 
 if __name__ == "__main__":
