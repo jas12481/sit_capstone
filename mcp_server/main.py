@@ -145,6 +145,23 @@ def get_assessment_data(claim_id: str = Query(...)):
         "eligibility_rules": rules_response.data
     }
 
+# ── CLAIM DOCUMENTS ───────────────────────────────────────────────────────────
+
+@app.get("/claim-documents")
+def get_claim_documents(
+    claim_id: Optional[str] = Query(None),
+    document_type: Optional[str] = Query(None)
+):
+    query = supabase.table("claim_documents").select("*")
+    if claim_id:
+        query = query.eq("claim_id", claim_id)
+    if document_type:
+        query = query.eq("document_type", document_type)
+    response = query.execute()
+    # Unlike other list endpoints, an empty result is a legitimate state here
+    # (a claim with no documents yet submitted) — return [] rather than 404.
+    return response.data or []
+
 # ── ASSESSMENT LOGS ───────────────────────────────────────────────────────────
 
 class AssessmentLogCreate(BaseModel):

@@ -1,0 +1,486 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Fraud_Anomaly_Risk_Signals
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.4.2@21195ee1321849e0a7d4b3f6b2fd8c2be23ea6c7182e1b444ecc4c1711b52468
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1783200010001-source-1783200010002-target
+      source: '1783200010001'
+      sourceHandle: source
+      target: '1783200010002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1783200010002-source-1783200010003-target
+      source: '1783200010002'
+      sourceHandle: source
+      target: '1783200010003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: code
+      id: 1783200010003-source-1783200010004-target
+      source: '1783200010003'
+      sourceHandle: source
+      target: '1783200010004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1783200010004-source-1783200010005-target
+      source: '1783200010004'
+      sourceHandle: source
+      target: '1783200010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1783200010005-source-1783200010006-target
+      source: '1783200010005'
+      sourceHandle: source
+      target: '1783200010006'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1783200010006-source-1783200010007-target
+      source: '1783200010006'
+      sourceHandle: source
+      target: '1783200010007'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1783200010007-source-1783200010008-target
+      source: '1783200010007'
+      sourceHandle: source
+      target: '1783200010008'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 5000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: claim_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: claim_id
+      height: 135
+      id: '1783200010001'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
+          \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
+          \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
+          \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
+          \    return {\"resolved_claim_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_claim_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_claim_id
+        type: code
+        variables:
+        - value_selector:
+          - '1783200010001'
+          - claim_id
+          value_type: string
+          variable: start_claim_id
+        - value_selector:
+          - '1783200010001'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1783200010002'
+      position:
+        x: 382
+        y: 282
+      positionAbsolute:
+        x: 382
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: claim_id:{{#1783200010002.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claim
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1783200010003'
+      position:
+        x: 684
+        y: 282
+      positionAbsolute:
+        x: 684
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef main(claim_body):\n    try:\n        data = json.loads(claim_body)\n\
+          \    except Exception:\n        data = []\n    if isinstance(data, list)\
+          \ and data:\n        claim = data[0]\n    elif isinstance(data, dict):\n\
+          \        claim = data\n    else:\n        claim = {}\n    return {\n \
+          \       \"customer_id\": claim.get(\"customer_id\", \"\"),\n        \"\
+          claim_json\": json.dumps(claim, ensure_ascii=False)\n    }"
+        code_language: python3
+        outputs:
+          claim_json:
+            children: null
+            type: string
+          customer_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_customer_id
+        type: code
+        variables:
+        - value_selector:
+          - '1783200010003'
+          - body
+          value_type: string
+          variable: claim_body
+      height: 52
+      id: '1783200010004'
+      position:
+        x: 986
+        y: 282
+      positionAbsolute:
+        x: 986
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: customer_id:{{#1783200010004.customer_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claims_history
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1783200010005'
+      position:
+        x: 1288
+        y: 282
+      positionAbsolute:
+        x: 1288
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 2b1e1a2b-6a4a-4b1a-9c0e-6a2e8f3b1a01
+          role: system
+          text: 'You are a fraud/anomaly detection assistant for insurance claims.
+            You will be given the current claim being assessed and a JSON list
+            of the same customer''s other claims history. Identify suspicious patterns
+            such as: multiple claims filed in a short time window, a claim filed
+            shortly after policy inception, claim amounts unusually close to the
+            sum assured limit, inconsistent or escalating claim amounts across the
+            customer''s history, or repeated claims of the same category. Do not
+            make a coverage recommendation — your only job is to flag anomaly risk
+            for a human investigator to review.'
+        - id: 3c2f2b3c-7b5b-4c2b-8d1f-7b3f9a4c2b02
+          role: user
+          text: 'Current claim being assessed (target claim_id: {{#1783200010002.resolved_claim_id#}}):
+
+            {{#1783200010004.claim_json#}}
+
+
+            This customer''s full claims history (this list may include the current
+            claim itself — exclude it when analyzing patterns across the customer''s
+            *other* claims):
+
+            {{#1783200010005.body#}}
+
+
+            Analyze for fraud/anomaly risk signals.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              flags:
+                items:
+                  properties:
+                    explanation:
+                      type: string
+                    signal:
+                      type: string
+                  required:
+                  - signal
+                  - explanation
+                  type: object
+                type: array
+              recommended_action:
+                enum:
+                - proceed_normally
+                - flag_for_investigation
+                type: string
+              risk_level:
+                enum:
+                - LOW
+                - MEDIUM
+                - HIGH
+                type: string
+            required:
+            - risk_level
+            - flags
+            - recommended_action
+            type: object
+        structured_output_enabled: true
+        title: fraud_risk_analysis
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1783200010006'
+      position:
+        x: 1590
+        y: 282
+      positionAbsolute:
+        x: 1590
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef main(recommendation_obj):\n    if isinstance(recommendation_obj,\
+          \ str):\n        try:\n            recommendation_obj = json.loads(recommendation_obj)\n\
+          \        except Exception:\n            pass\n    return {\"recommendation_json\"\
+          : json.dumps(recommendation_obj, ensure_ascii=False)}"
+        code_language: python3
+        outputs:
+          recommendation_json:
+            children: null
+            type: string
+        selected: false
+        title: serialize_structured_output
+        type: code
+        variables:
+        - value_selector:
+          - '1783200010006'
+          - structured_output
+          value_type: object
+          variable: recommendation_obj
+      height: 52
+      id: '1783200010007'
+      position:
+        x: 1892
+        y: 282
+      positionAbsolute:
+        x: 1892
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1783200010007'
+          - recommendation_json
+          value_type: string
+          variable: answer
+        selected: false
+        title: fraud_risk_report
+        type: end
+      height: 88
+      id: '1783200010008'
+      position:
+        x: 2194
+        y: 282
+      positionAbsolute:
+        x: 2194
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 156.94637982169365
+      y: 56.031350497954804
+      zoom: 0.8923248169227207
+  rag_pipeline_variables: []

@@ -1,0 +1,443 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Missing_Documentation_Advisor
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.4.2@21195ee1321849e0a7d4b3f6b2fd8c2be23ea6c7182e1b444ecc4c1711b52468
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1783300010001-source-1783300010002-target
+      source: '1783300010001'
+      sourceHandle: source
+      target: '1783300010002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1783300010002-source-1783300010003-target
+      source: '1783300010002'
+      sourceHandle: source
+      target: '1783300010003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1783300010002-source-1783300010004-target
+      source: '1783300010002'
+      sourceHandle: source
+      target: '1783300010004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1783300010003-source-1783300010005-target
+      source: '1783300010003'
+      sourceHandle: source
+      target: '1783300010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1783300010004-source-1783300010005-target
+      source: '1783300010004'
+      sourceHandle: source
+      target: '1783300010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1783300010005-source-1783300010006-target
+      source: '1783300010005'
+      sourceHandle: source
+      target: '1783300010006'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1783300010006-source-1783300010007-target
+      source: '1783300010006'
+      sourceHandle: source
+      target: '1783300010007'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 5000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: claim_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: claim_id
+      height: 135
+      id: '1783300010001'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
+          \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
+          \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
+          \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
+          \    return {\"resolved_claim_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_claim_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_claim_id
+        type: code
+        variables:
+        - value_selector:
+          - '1783300010001'
+          - claim_id
+          value_type: string
+          variable: start_claim_id
+        - value_selector:
+          - '1783300010001'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1783300010002'
+      position:
+        x: 382
+        y: 282
+      positionAbsolute:
+        x: 382
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: claim_id:{{#1783300010002.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_assessment
+        type: http-request
+        url: https://sit-capstone.onrender.com/assessment
+        variables: []
+      height: 138
+      id: '1783300010003'
+      position:
+        x: 684
+        y: 180
+      positionAbsolute:
+        x: 684
+        y: 180
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        headers: Content-Type:application/json
+        method: get
+        params: claim_id:{{#1783300010002.resolved_claim_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claim_documents
+        type: http-request
+        url: https://sit-capstone.onrender.com/claim-documents
+        variables: []
+      height: 138
+      id: '1783300010004'
+      position:
+        x: 684
+        y: 400
+      positionAbsolute:
+        x: 684
+        y: 400
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 4d3f3c4d-8c6c-4d3c-9e2f-8c4f0b5d3c03
+          role: system
+          text: 'You are a claims documentation assistant. Given a claim, its policy
+            type''s mandatory eligibility rules, and the list of documents already
+            submitted for this claim, determine which additional documents are
+            still required to complete assessment. Base your answer only on what
+            the rule descriptions and claim category imply (e.g. an accidental
+            death claim requires a police report or coroner''s report). If a required
+            document is already present in the submitted list, do not list it as
+            missing. Do not recommend approval or rejection — your only job is
+            to list missing documentation.'
+        - id: 5e4a4d5e-9d7d-4e4d-af3a-9d5a1c6e4d04
+          role: user
+          text: 'Assessment data (claim, policy, and eligibility rules):
+
+            {{#1783300010003.body#}}
+
+
+            Documents already submitted for this claim:
+
+            {{#1783300010004.body#}}
+
+
+            Determine which additional documents are still required.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              all_requirements_met:
+                type: boolean
+              missing_documents:
+                items:
+                  properties:
+                    document_type:
+                      type: string
+                    linked_rule_id:
+                      type: string
+                    reason:
+                      type: string
+                  required:
+                  - document_type
+                  - reason
+                  - linked_rule_id
+                  type: object
+                type: array
+              submitted_documents_summary:
+                type: string
+            required:
+            - missing_documents
+            - submitted_documents_summary
+            - all_requirements_met
+            type: object
+        structured_output_enabled: true
+        title: missing_docs_analysis
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1783300010005'
+      position:
+        x: 986
+        y: 282
+      positionAbsolute:
+        x: 986
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef main(recommendation_obj):\n    if isinstance(recommendation_obj,\
+          \ str):\n        try:\n            recommendation_obj = json.loads(recommendation_obj)\n\
+          \        except Exception:\n            pass\n    return {\"recommendation_json\"\
+          : json.dumps(recommendation_obj, ensure_ascii=False)}"
+        code_language: python3
+        outputs:
+          recommendation_json:
+            children: null
+            type: string
+        selected: false
+        title: serialize_structured_output
+        type: code
+        variables:
+        - value_selector:
+          - '1783300010005'
+          - structured_output
+          value_type: object
+          variable: recommendation_obj
+      height: 52
+      id: '1783300010006'
+      position:
+        x: 1288
+        y: 282
+      positionAbsolute:
+        x: 1288
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1783300010006'
+          - recommendation_json
+          value_type: string
+          variable: answer
+        selected: false
+        title: missing_docs_report
+        type: end
+      height: 88
+      id: '1783300010007'
+      position:
+        x: 1590
+        y: 282
+      positionAbsolute:
+        x: 1590
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 156.94637982169365
+      y: 56.031350497954804
+      zoom: 0.8923248169227207
+  rag_pipeline_variables: []
