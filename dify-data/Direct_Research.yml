@@ -152,10 +152,9 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
-          \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
-          \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
-          \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef _extract_claim_id_from_query(query):\n\
+          \    q = _clean(query)\n    if not q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\\
+          d{3,6})\\b\", q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
           \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
           \    return {\"resolved_claim_id\": resolved}"
         code_language: python3
@@ -240,15 +239,17 @@ workflow:
         prompt_template:
         - id: 1e8cfffe-3309-4f4c-9bf4-4bcb7eab9635
           role: system
-          text: 'You will be given claim, policy, eligibility rule, and claim_documents
-            data as JSON. For any eligibility rule requiring a specific supporting
-            document (e.g. a medical report, specialist report, or police/coroner
-            report), treat that requirement as satisfied if a document of that type
-            is present in claim_documents — its presence alone is sufficient, since
-            claim_documents stores document metadata only, not full content. For any
-            rule requiring facility or treatment details, check the claim''s notes
-            field. Respond with ONLY one of these exact words: APPROVE, REJECT, or
-            REFER_FOR_FURTHER_REVIEW. Do not include any explanation, reasoning, or
+          text: 'You will be given claim, policy, eligibility rule, and claim_documents data as JSON.
+            For any eligibility rule requiring a specific supporting document (e.g. a medical report,
+            specialist report, or police/coroner report), a document of that type being present in claim_documents
+            satisfies the presence requirement. Some claim_documents entries also include a content_summary
+            field describing what the document actually states — read and rely on content_summary when
+            it is present to resolve any rule that depends on what a document says (e.g. whether an incident
+            was self-inflicted), not just whether the document exists. If content_summary is null for
+            a relevant document, only the presence-based part of the rule is satisfied — you cannot confirm
+            content-based requirements from a null content_summary. For any rule requiring facility or
+            treatment details, check the claim''s notes field. Respond with ONLY one of these exact words:
+            APPROVE, REJECT, or REFER_FOR_FURTHER_REVIEW. Do not include any explanation, reasoning, or
             additional text.'
         - id: dfe7852a-514e-4310-981f-dc085a6b3284
           role: user

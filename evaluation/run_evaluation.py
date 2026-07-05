@@ -82,7 +82,7 @@ def _http_get_json(path: str) -> dict:
         return json.load(r)
 
 
-def _call_dify_workflow(api_key: str, claim_id: str) -> dict:
+def _call_dify_workflow(api_key: str, claim_id: str, timeout: int = 120) -> dict:
     """POST to Dify's workflow API (not chat-messages — these are Workflow-mode apps)."""
     body = json.dumps({
         "inputs": {"claim_id": claim_id, "query": "assess this claim"},
@@ -102,7 +102,7 @@ def _call_dify_workflow(api_key: str, claim_id: str) -> dict:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
 
 
@@ -156,7 +156,11 @@ def run_one(test_case: dict, strategy: str, real_rules_cache: dict, dry_run: boo
     actual_confidence = None
     cited_rule_ids: list[str] = []
     try:
-        resp = _call_dify_workflow(api_key, claim_id)
+        # combined chains ~7 sequential LLM calls (rule check -> policy analysis -> verdict
+        # synthesis -> judge -> report formatting -> suggestion context) vs. 1 for the other
+        # strategies — a single direct call took ~37s, so give combined real headroom.
+        call_timeout = 480 if strategy == "combined" else 120
+        resp = _call_dify_workflow(api_key, claim_id, timeout=call_timeout)
         outputs = resp.get("data", {}).get("outputs", {}) or {}
         if strategy in ("direct", "cot"):
             actual_rec, cited_rule_ids, raw_text = _parse_direct_or_cot(outputs)
@@ -213,6 +217,7 @@ def run_one(test_case: dict, strategy: str, real_rules_cache: dict, dry_run: boo
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the 4-strategy recommendation-accuracy study")
     parser.add_argument("--claim", help="Only run this test_id (e.g. life_approve)")
+    parser.add_argument("--strategy", choices=STRATEGIES, help="Only run this strategy (e.g. combined)")
     parser.add_argument("--dry-run", action="store_true", help="Print planned runs, no Dify/MLflow calls")
     args = parser.parse_args()
 
@@ -232,11 +237,15 @@ def main() -> None:
 
     real_rules_cache: dict[str, list[str]] = {}
     results = []
-    planned = sum(len(t["applicable_strategies"]) for t in test_claims)
+    strategies_per_test = [
+        [s for s in t["applicable_strategies"] if not args.strategy or s == args.strategy]
+        for t in test_claims
+    ]
+    planned = sum(len(s) for s in strategies_per_test)
     done = 0
 
-    for t in test_claims:
-        for strategy in t["applicable_strategies"]:
+    for t, strategies in zip(test_claims, strategies_per_test):
+        for strategy in strategies:
             done += 1
             print(f"[{done}/{planned}] {t['test_id']} / {strategy}...", end=" ")
             try:

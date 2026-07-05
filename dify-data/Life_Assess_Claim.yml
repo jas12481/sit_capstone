@@ -542,10 +542,14 @@ workflow:
 
             You will also be given the claim''s submitted supporting documents (claim_documents) as JSON.
             For any eligibility rule requiring a specific supporting document (e.g. a medical report,
-            specialist report, or police/coroner report), treat that requirement as satisfied if a document
-            of that type is present in claim_documents — its presence alone is sufficient, since claim_documents
-            stores document metadata only, not full content. For any rule requiring facility or treatment
-            details, check the claim record''s notes field. If the claim record''s condition_is_pre_existing
+            specialist report, or police/coroner report), a document of that type being present in claim_documents
+            satisfies the presence requirement. Some claim_documents entries also include a content_summary
+            field describing what the document actually states — read and rely on content_summary when
+            it is present to resolve any rule that depends on what a document says (e.g. whether an incident
+            was self-inflicted), not just whether the document exists. If content_summary is null for
+            a relevant document, only the presence-based part of the rule is satisfied — you cannot confirm
+            content-based requirements from a null content_summary. For any rule requiring facility or
+            treatment details, check the claim record''s notes field. If the claim record''s condition_is_pre_existing
             field is explicitly false, treat any pre-existing-condition exclusion rule as satisfied (the
             condition is confirmed not pre-existing, so no further underwriting declaration is needed);
             if true or not stated, treat it as unable to confirm.
@@ -562,7 +566,12 @@ workflow:
 
             Set mandatory_rules_failed based on failed mandatory rules only.
 
-            Set total_rules_passed as count of passed rules.'
+            Set total_rules_passed as count of passed rules.
+
+
+            If a rule''s condition explicitly does not apply to this claim (e.g. a rule gated to a specific
+            claim_category that doesn''t match this claim''s category), mark that rule''s result as NOT_APPLICABLE,
+            not UNKNOWN or PASS.'
         - id: a9e01a05-a6cc-4415-b614-7f6236cad0bd
           role: user
           text: 'Claim record:
@@ -608,6 +617,7 @@ workflow:
                       - PASS
                       - FAIL
                       - UNKNOWN
+                      - NOT_APPLICABLE
                       type: string
                     rule_id:
                       type: string
@@ -759,15 +769,16 @@ workflow:
             \ unknowns (examples):\n- Mandatory rule result is UNKNOWN\n- Required evidence for claim\
             \ category is missing (e.g., accidental_death without police/coroner report)\n- Core in-force\
             \ determination at relevant event date cannot be established from provided data\n\nOnly treat\
-            \ UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\n\
-            Do not create new blocking unknowns from narrative policy text inconsistencies unless they\
-            \ directly change a mandatory rule result.\n\nIf mandatory_rules_failed == 0 and no mandatory\
-            \ rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least one mandatory rule\
-            \ is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n\
-            - HIGH: strong evidence, no material contradictions, no blocking unknowns\n- MEDIUM: mostly\
-            \ sufficient evidence with limited uncertainty\n- LOW: material uncertainty, contradictions,\
-            \ or major missing evidence\n\nOutput quality rules:\n- key_rationale must be concise and\
-            \ operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
+            \ UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\
+            \ Treat a mandatory rule result of NOT_APPLICABLE the same as PASS for approval purposes —\
+            \ it is not a blocking unknown.\nDo not create new blocking unknowns from narrative policy\
+            \ text inconsistencies unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed\
+            \ == 0 and no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least\
+            \ one mandatory rule is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\n\
+            Confidence policy:\n- HIGH: strong evidence, no material contradictions, no blocking unknowns\n\
+            - MEDIUM: mostly sufficient evidence with limited uncertainty\n- LOW: material uncertainty,\
+            \ contradictions, or major missing evidence\n\nOutput quality rules:\n- key_rationale must\
+            \ be concise and operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
             \ should be concrete, executable actions.\n- Do NOT place long rationale text inside enum/token\
             \ fields."
         - id: 7eade8ec-0139-4b40-9997-b9888b4d4177
