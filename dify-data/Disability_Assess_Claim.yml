@@ -82,19 +82,6 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
-        targetType: http-request
-      id: 1779138546683-source-17791384433540-target
-      selected: false
-      source: '1779138546683'
-      sourceHandle: source
-      target: '17791384433540'
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
         sourceType: http-request
         targetType: llm
       id: 17792013939140-source-1779201495095-target
@@ -102,19 +89,6 @@ workflow:
       source: '17792013939140'
       sourceHandle: source
       target: '1779201495095'
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: llm
-        targetType: llm
-      id: 1779201495095-source-1779201857626-target
-      selected: false
-      source: '1779201495095'
-      sourceHandle: source
-      target: '1779201857626'
       targetHandle: target
       type: custom
       zIndex: 0
@@ -278,11 +252,71 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
-        targetType: http-request
-      id: 1780461414069-source-1783700010400-target
-      source: '1780461414069'
+        sourceType: http-request
+        targetType: llm
+      id: 1783700010400-source-1779201495095-target
+      source: '1783700010400'
       sourceHandle: source
+      target: '1779201495095'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: 1779138546683-source-1783900014100-target
+      source: '1779138546683'
+      sourceHandle: source
+      target: '1783900014100'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: http-request
+      id: 1783900014100-true-17791384433540-target
+      source: '1783900014100'
+      sourceHandle: 'true'
+      target: '17791384433540'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: 1783900014100-false-1783900014200-target
+      source: '1783900014100'
+      sourceHandle: 'false'
+      target: '1783900014200'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1783900014200-source-1779204961211-target
+      source: '1783900014200'
+      sourceHandle: source
+      target: '1779204961211'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: if-else
+        targetType: http-request
+      id: 1783900014100-true-1783700010400-target
+      source: '1783900014100'
+      sourceHandle: 'true'
       target: '1783700010400'
       targetHandle: target
       type: custom
@@ -290,12 +324,24 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: http-request
-        targetType: llm
-      id: 1783700010400-source-1779201495095-target
-      source: '1783700010400'
+        sourceType: llm
+        targetType: code
+      id: 1779201495095-source-178400001400-target
+      source: '1779201495095'
       sourceHandle: source
-      target: '1779201495095'
+      target: '178400001400'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: 178400001400-source-1779201857626-target
+      source: '178400001400'
+      sourceHandle: source
+      target: '1779201857626'
       targetHandle: target
       type: custom
       zIndex: 0
@@ -770,27 +816,20 @@ workflow:
             \ policy below.\n4) Keep recommendation token strict: APPROVE, REJECT, or REFER_FOR_FURTHER_REVIEW\
             \ only.\n5) Keep confidence_level token strict: LOW, MEDIUM, HIGH only.\n6) Keep coverage_conclusion\
             \ token strict: CLEARLY_COVERED, NOT_COVERED, UNCLEAR only.\n\nDecision policy (must follow\
-            \ in order):\nA) If mandatory_rules_failed > 0:\n   - recommendation = REJECT\n   - coverage_conclusion\
-            \ = NOT_COVERED\n\nB) Else if all mandatory rules are PASS and there are no blocking unknowns:\n\
-            \   - recommendation = APPROVE\n   - coverage_conclusion = CLEARLY_COVERED\n\nC) Else:\n \
-            \  - recommendation = REFER_FOR_FURTHER_REVIEW\n   - coverage_conclusion = UNCLEAR\n\nBlocking\
-            \ unknowns (examples):\n- Mandatory rule result is UNKNOWN\n- Required evidence for claim\
-            \ category is missing (e.g., accidental_death without police/coroner report)\n- Core in-force\
-            \ determination at relevant event date cannot be established from provided data\n\nOnly treat\
-            \ UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\
-            \ Treat a mandatory rule result of NOT_APPLICABLE the same as PASS for approval purposes —\
-            \ it is not a blocking unknown. However, if EVERY rule in rule_by_rule_eligibility_check is\
-            \ NOT_APPLICABLE (zero rules PASS and zero rules FAIL), this indicates the provided eligibility\
-            \ rules likely do not match this claim's actual type — treat this as a blocking unknown and\
-            \ return REFER_FOR_FURTHER_REVIEW rather than APPROVE, regardless of the individual NOT_APPLICABLE\
-            \ handling above.\nDo not create new blocking unknowns from narrative policy text inconsistencies\
-            \ unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed == 0 and\
-            \ no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least one mandatory\
-            \ rule is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n\
-            - HIGH: strong evidence, no material contradictions, no blocking unknowns\n- MEDIUM: mostly\
-            \ sufficient evidence with limited uncertainty\n- LOW: material uncertainty, contradictions,\
-            \ or major missing evidence\n\nOutput quality rules:\n- key_rationale must be concise and\
-            \ operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
+            \ in order) — mandatory_rules_failed, total_rules_passed,\nmandatory_unknown_count, and all_not_applicable\
+            \ below are computed deterministically by code\nfrom the rule_checks array (not estimated\
+            \ or recalled by you) — always use these exact values,\nnever recompute or override them with\
+            \ different numbers even if the rule-check node's own\nnarrative text suggests otherwise:\n\
+            \nA) If mandatory_rules_failed > 0:\n   - recommendation = REJECT\n   - coverage_conclusion\
+            \ = NOT_COVERED\n\nB) Else if mandatory_unknown_count > 0:\n   - recommendation = REFER_FOR_FURTHER_REVIEW\n\
+            \   - coverage_conclusion = UNCLEAR\n\nC) Else if all_not_applicable is true (every rule came\
+            \ back NOT_APPLICABLE — this most likely\n   means the provided eligibility rules don't match\
+            \ this claim's actual type):\n   - recommendation = REFER_FOR_FURTHER_REVIEW\n   - coverage_conclusion\
+            \ = UNCLEAR\n\nD) Else:\n   - recommendation = APPROVE\n   - coverage_conclusion = CLEARLY_COVERED\n\
+            \nConfidence policy:\n- HIGH: strong evidence, no material contradictions, no blocking unknowns\n\
+            - MEDIUM: mostly sufficient evidence with limited uncertainty\n- LOW: material uncertainty,\
+            \ contradictions, or major missing evidence\n\nOutput quality rules:\n- key_rationale must\
+            \ be concise and operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
             \ should be concrete, executable actions.\n- Do NOT place long rationale text inside enum/token\
             \ fields."
         - id: 7eade8ec-0139-4b40-9997-b9888b4d4177
@@ -810,6 +849,17 @@ workflow:
             {{#1779201495095.structured_output#}}
 
 
+            Computed rule counts (from code, always accurate - use these exact values):
+
+            mandatory_rules_failed = {{#178400001400.mandatory_rules_failed#}}
+
+            total_rules_passed = {{#178400001400.total_rules_passed#}}
+
+            mandatory_unknown_count = {{#178400001400.mandatory_unknown_count#}}
+
+            all_not_applicable = {{#178400001400.all_not_applicable#}}
+
+
             Policy analysis:
 
             {{#1779201857626.structured_output#}}
@@ -820,9 +870,9 @@ workflow:
 
             Additional instructions:
 
-            - Treat rule-check output as primary for pass/fail counts.
-
-            - Use mandatory_rules_failed from rule-check unless clearly inconsistent.
+            - Use the computed mandatory_rules_failed/total_rules_passed/mandatory_unknown_count/all_not_applicable
+            values provided above for your decision — never the rule-check node''s own summary fields,
+            even if they differ.
 
             - If recommendation is APPROVE, explain briefly why no blocking unknowns remain.
 
@@ -976,6 +1026,11 @@ workflow:
           - merged_json
           value_type: string
           variable: final_report
+        - value_selector:
+          - '1783900014200'
+          - mismatch_json
+          value_type: string
+          variable: final_report_mismatch
         selected: false
         title: final_report_answer
         type: end
@@ -1681,6 +1736,133 @@ workflow:
       positionAbsolute:
         x: 1187.3679059224817
         y: 1166.279339603383
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: is
+            id: 4279cc7c-ce09-46ea-bda6-a1eacf26fab7
+            value: disability
+            varType: string
+            variable_selector:
+            - '1779138546683'
+            - claim_type
+          id: 'true'
+          logical_operator: and
+        selected: false
+        title: domain_check
+        type: if-else
+      height: 126
+      id: '1783900014100'
+      position:
+        x: 1839.1733408930736
+        y: 891.4985450917181
+      positionAbsolute:
+        x: 1839.1733408930736
+        y: 891.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef main(claim_type, claim_id, expected_domain=\"disability\"):\n    payload\
+          \ = {\n        \"answer\": {\n            \"title\": f\"Claim Assessment Report - {claim_id}\
+          \ (Domain Mismatch)\",\n            \"verdict\": {\n                \"recommendation\": \"REFER_FOR_FURTHER_REVIEW\"\
+          ,\n                \"coverage_conclusion\": \"UNCLEAR\",\n                \"confidence_level\"\
+          : \"HIGH\"\n            },\n            \"executive_summary\": f\"This claim's type ('{claim_type}')\
+          \ does not match the '{expected_domain}' workflow it was submitted to. No eligibility assessment\
+          \ was performed.\",\n            \"rule_summary\": \"Not evaluated - domain mismatch detected\
+          \ before eligibility checks ran.\",\n            \"audit_notes\": f\"Automated domain check:\
+          \ claim_type='{claim_type}', expected='{expected_domain}'.\",\n            \"risk_flags\": [f\"\
+          Claim type '{claim_type}' does not match this workflow's domain ('{expected_domain}')\"],\n\
+          \            \"next_actions\": [f\"Re-submit this claim to the '{claim_type}' assessment workflow\"\
+          ]\n        },\n        \"suggestion_context\": {\n            \"path_type\": \"ASSESS_CLAIM\"\
+          ,\n            \"outcome_type\": \"DOMAIN_MISMATCH\",\n            \"entities\": {\"claim_id\"\
+          : claim_id, \"recommendation\": \"REFER_FOR_FURTHER_REVIEW\"},\n            \"follow_up_themes\"\
+          : [\"Domain mismatch\"],\n            \"missing_information\": [],\n            \"next_decision_points\"\
+          : [f\"Route to the correct '{claim_type}' workflow\"]\n        }\n    }\n    return {\"mismatch_json\"\
+          : json.dumps(payload, ensure_ascii=False)}\n"
+        code_language: python3
+        outputs:
+          mismatch_json:
+            children: null
+            type: string
+        selected: false
+        title: build_mismatch_response
+        type: code
+        variables:
+        - value_selector:
+          - '1779138546683'
+          - claim_type
+          value_type: string
+          variable: claim_type
+        - value_selector:
+          - '1779138546683'
+          - claim_id_from_data
+          value_type: string
+          variable: claim_id
+      height: 52
+      id: '1783900014200'
+      position:
+        x: 2139.1733408930736
+        y: 1091.4985450917181
+      positionAbsolute:
+        x: 2139.1733408930736
+        y: 1091.4985450917181
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n        return v\n    if isinstance(v,\
+          \ str):\n        try:\n            return json.loads(v)\n        except Exception:\n       \
+          \     return {}\n    return {}\n\ndef main(rule_check_output):\n    obj = _to_obj(rule_check_output)\n\
+          \    rule_checks = obj.get(\"rule_checks\", []) or []\n    mandatory_rules_failed = sum(1 for\
+          \ r in rule_checks if r.get(\"is_mandatory\") and r.get(\"result\") == \"FAIL\")\n    total_rules_passed\
+          \ = sum(1 for r in rule_checks if r.get(\"result\") == \"PASS\")\n    mandatory_unknown_count\
+          \ = sum(1 for r in rule_checks if r.get(\"is_mandatory\") and r.get(\"result\") == \"UNKNOWN\"\
+          )\n    all_not_applicable = bool(rule_checks) and all(r.get(\"result\") == \"NOT_APPLICABLE\"\
+          \ for r in rule_checks)\n    return {\n        \"mandatory_rules_failed\": mandatory_rules_failed,\n\
+          \        \"total_rules_passed\": total_rules_passed,\n        \"mandatory_unknown_count\": mandatory_unknown_count,\n\
+          \        \"all_not_applicable\": all_not_applicable,\n    }\n"
+        code_language: python3
+        outputs:
+          mandatory_rules_failed:
+            children: null
+            type: number
+          total_rules_passed:
+            children: null
+            type: number
+          mandatory_unknown_count:
+            children: null
+            type: number
+          all_not_applicable:
+            children: null
+            type: boolean
+        selected: false
+        title: compute_rule_counts
+        type: code
+        variables:
+        - value_selector:
+          - '1779201495095'
+          - structured_output
+          value_type: object
+          variable: rule_check_output
+      height: 52
+      id: '178400001400'
+      position:
+        x: 2867.0052626421407
+        y: 1091.4985450917181
+      positionAbsolute:
+        x: 2867.0052626421407
+        y: 1091.4985450917181
       selected: false
       sourcePosition: right
       targetPosition: left
