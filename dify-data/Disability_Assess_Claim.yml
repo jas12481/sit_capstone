@@ -566,12 +566,20 @@ workflow:
 
             Set mandatory_rules_failed based on failed mandatory rules only.
 
-            Set total_rules_passed as count of passed rules.
+            Set total_rules_passed as count of passed rules. Compute mandatory_rules_failed and total_rules_passed
+            by counting the entries in your own rule_checks array (do not use a separately-recalled or
+            estimated number): mandatory_rules_failed = count of entries where is_mandatory is true and
+            result is FAIL; total_rules_passed = count of entries where result is PASS. These two numbers
+            must be fully consistent with the rule_checks array you return in the same response.
 
 
             If a rule''s condition explicitly does not apply to this claim (e.g. a rule gated to a specific
-            claim_category that doesn''t match this claim''s category), mark that rule''s result as NOT_APPLICABLE,
-            not UNKNOWN or PASS.'
+            claim_category that doesn''t match this claim''s category — such as an accidental death evidence
+            rule when the claim category is ''death'', not ''accidental_death''), you MUST mark that rule''s
+            result as NOT_APPLICABLE. Do not mark a non-matching category-gated rule as FAIL just because
+            supporting evidence for it is absent — absence of evidence for a rule that doesn''t apply
+            is irrelevant, not a failure. Check every rule''s condition against this claim''s actual category
+            before deciding PASS/FAIL/NOT_APPLICABLE/UNKNOWN.'
         - id: a9e01a05-a6cc-4415-b614-7f6236cad0bd
           role: user
           text: 'Claim record:
