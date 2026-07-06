@@ -771,14 +771,18 @@ workflow:
             - Core in-force determination at relevant event date cannot be established from provided data\n\
             \nOnly treat UNKNOWN as blocking if it comes from a mandatory rule in rule_by_rule_eligibility_check.\
             \ Treat a mandatory rule result of NOT_APPLICABLE the same as PASS for approval purposes —\
-            \ it is not a blocking unknown.\nDo not create new blocking unknowns from narrative policy\
-            \ text inconsistencies unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed\
-            \ == 0 and no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least\
-            \ one mandatory rule is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\n\
-            Confidence policy:\n- HIGH: strong evidence, no material contradictions, no blocking unknowns\n\
-            - MEDIUM: mostly sufficient evidence with limited uncertainty\n- LOW: material uncertainty,\
-            \ contradictions, or major missing evidence\n\nOutput quality rules:\n- key_rationale must\
-            \ be concise and operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
+            \ it is not a blocking unknown. However, if EVERY rule in rule_by_rule_eligibility_check is\
+            \ NOT_APPLICABLE (zero rules PASS and zero rules FAIL), this indicates the provided eligibility\
+            \ rules likely do not match this claim's actual type — treat this as a blocking unknown and\
+            \ return REFER_FOR_FURTHER_REVIEW rather than APPROVE, regardless of the individual NOT_APPLICABLE\
+            \ handling above.\nDo not create new blocking unknowns from narrative policy text inconsistencies\
+            \ unless they directly change a mandatory rule result.\n\nIf mandatory_rules_failed == 0 and\
+            \ no mandatory rule is UNKNOWN, return APPROVE.\n\nReturn REJECT only when at least one mandatory\
+            \ rule is FAIL.\nDo not REJECT on UNKNOWN; use REFER_FOR_FURTHER_REVIEW.\n\nConfidence policy:\n\
+            - HIGH: strong evidence, no material contradictions, no blocking unknowns\n- MEDIUM: mostly\
+            \ sufficient evidence with limited uncertainty\n- LOW: material uncertainty, contradictions,\
+            \ or major missing evidence\n\nOutput quality rules:\n- key_rationale must be concise and\
+            \ operational.\n- key_risks should be short bullet-like strings.\n- recommended_next_actions\
             \ should be concrete, executable actions.\n- Do NOT place long rationale text inside enum/token\
             \ fields."
         - id: 7eade8ec-0139-4b40-9997-b9888b4d4177
