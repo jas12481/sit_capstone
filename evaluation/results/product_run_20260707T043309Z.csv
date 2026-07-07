@@ -1,0 +1,143 @@
+app,claim_id,is_faithful,mode_b_fired_unexpectedly,no_contradicting_recommendation,raw_response,recommendation_mentioned,test_id
+explain,CLM-0278,False,False,True,"Claim **CLM-0278** has been recommended for **APPROVAL** with **HIGH** confidence because the assessment found the loss is **clearly covered** under the policy and there were **no critical (mandatory) rule breaches**.
+
+### What the decision was
+- **Recommendation:** **APPROVE**
+- **Coverage conclusion:** **CLEARLY_COVERED**
+- **Confidence level:** **HIGH**
+
+### Why this verdict was reached
+- **All mandatory requirements were met.**  
+  The assessment shows **0 mandatory rules failed**, meaning none of the “must-pass” checks that would automatically block or decline the claim were triggered (for example, fundamental eligibility or key exclusion checks).
+- **The rules-based checks strongly supported approval.**  
+  A total of **6 rules passed**, indicating the claim information aligned well with the expected criteria for coverage and payment under this workflow.
+- **Overall coverage determination was unambiguous.**  
+  The conclusion **CLEARLY_COVERED** means the circumstances of the claim matched covered events/benefits and did not present conflicts that would require escalation or a partial/conditional outcome.
+
+### Quality indicators (how reliable the assessment is)
+Independent scoring of the assessment output suggests it was well-formed and consistent:
+- **Completeness:** 4.4 / 5 (key elements were sufficiently addressed)
+- **Consistency:** 4.6 / 5 (no major internal contradictions)
+- **Clarity:** 4.7 / 5 (easy to understand and follow)
+- **Hallucination risk:** 4 / 5 (low risk of unsupported assertions)
+- **Overall:** 4.4 / 5
+
+### Traceability
+- **Log ID:** def0007a-9293-4e2c-8d72-c400ce352015  
+- **Assessed at:** 2026-07-06T20:19:26.996827  
+- **Model/Prompt:** gpt-5.2 / ci_assess_claim_v1.0
+
+**Bottom line:** The claim passed all critical checks, met multiple supporting rules, and falls clearly within coverage—so the correct outcome is to **approve**.",True,explain_ci_approve
+explain,CLM-0072,True,False,True,"**Claim ID:** CLM-0072  
+**Assessment outcome:** **REJECT** (Confidence: **HIGH**)  
+**Coverage conclusion:** **NOT_COVERED**
+
+### What this decision means
+The assessment determined that this claim does **not fall within the policy’s insured benefits/coverage**, so it **cannot be paid** under the contract terms. Because coverage is a prerequisite for any payment, the appropriate outcome is **rejection**.
+
+### Why it was rejected
+- The rules check found **1 mandatory (must-pass) rule failure**.  
+  Mandatory rules are “gatekeeper” requirements—if even one of these fails, the claim cannot proceed as payable, even if other checks look acceptable.
+- Although **5 rules were passed**, passing non-mandatory checks **does not override** a failed mandatory requirement.
+- Based on that failed mandatory rule, the overall coverage position is **NOT_COVERED**, which directly leads to **REJECT**.
+
+### How confident the system is
+- The confidence level is **HIGH**, indicating the system found the evidence/rule outcomes consistent and strong enough to support a clear decision rather than a borderline case.
+
+### Quality indicators (for internal context)
+The automated review also scored well on completeness/consistency/clarity, with low-to-moderate hallucination risk scores, supporting that the outcome was reached in a stable and well-formed way:
+- Completeness: 4.5 / Consistency: 4.6 / Clarity: 4.7 / Overall: 4.5
+
+**Bottom line:** The claim is **rejected** because a **mandatory coverage requirement was not met**, leading to a **NOT_COVERED** conclusion, despite several other rule checks passing.",True,explain_ci_reject
+explain,CLM-0630,False,False,True,"**Claim CLM-0630 – Assessment Explanation (Life Claim)**  
+**Final recommendation: APPROVE** (Confidence: **MEDIUM**)  
+**Coverage conclusion: CLEARLY_COVERED**  
+**Rules outcome:** **4 passed**, **0 mandatory rules failed**
+
+### Why the recommendation is **APPROVE**
+- The assessment concluded the claim is **clearly covered under the policy** (“CLEARLY_COVERED”). This means nothing in the available information indicates the event falls outside the policy’s insured benefits or triggers a standard exclusion.
+- **All mandatory checks passed** (**0 mandatory rules failed**). In this workflow, failing any mandatory rule would typically stop approval or require escalation. Since none failed, there is no compliance or eligibility blocker preventing payment.
+- A total of **4 rules were passed**, indicating the key eligibility/coverage validation steps included in this assessment were satisfied.
+
+### What **MEDIUM confidence** means here
+- The system is recommending approval, but the confidence is **medium**, not high. This usually indicates that while the core coverage decision is supported, there may be **some uncertainty or incomplete detail** in the inputs (e.g., documentation completeness, minor ambiguities, or limited corroborating information).
+- Importantly, the medium confidence **does not contradict** the outcome: the coverage conclusion is still **clearly covered**, and there were **no mandatory rule failures**.
+
+### Quality indicators (why the explanation is considered reliable)
+- The assessment scored strongly on internal quality checks:  
+  - **Completeness:** 4.5/5  
+  - **Consistency:** 4.2/5  
+  - **Hallucination risk (lower risk implied by higher score):** 4.4/5  
+  - **Clarity:** 4.6/5  
+  - **Overall:** 4.4/5  
+These scores support that the decision was made in a **coherent and well-supported** manner, based on the information provided in the workflow.
+
+### Bottom line
+Because the claim was assessed as **clearly within coverage**, and **no mandatory rules were breached**, the correct outcome under this assessment is to **APPROVE** the claim, with **medium confidence** reflecting minor residual uncertainty rather than any coverage issue.",True,explain_life_approve
+explain,CLM-0006,False,False,True,"**Claim ID: CLM-0006 — Assessment explanation (Recommendation: APPROVE)**
+
+### Outcome
+- **Recommendation:** **APPROVE**
+- **Coverage conclusion:** **CLEARLY_COVERED**
+- **Confidence level:** **MEDIUM**
+
+### Why this was approved
+1. **The claim met all required “must-pass” checks.**  
+   - **Mandatory rules failed:** **0**  
+   This means none of the critical eligibility or compliance conditions triggered a rejection. If any mandatory rule had failed (for example, a clear exclusion or missing required eligibility condition), the claim would not have been approved.
+
+2. **The overall rule evaluation supports eligibility.**  
+   - **Total rules passed:** **6**  
+   Passing the assessed rules indicates the claim information aligned with the policy’s criteria for a covered disability claim under this workflow.
+
+3. **Coverage determination is unambiguous.**  
+   - **Coverage conclusion:** **CLEARLY_COVERED**  
+   This indicates the assessment found the claim fits within the policy coverage without needing special interpretation, exceptions, or borderline judgment.
+
+### What “MEDIUM” confidence means here
+- The system is **reasonably confident** in the approval based on the available information and the rules evaluated.
+- “Medium” confidence typically suggests there may be **some uncertainty** (e.g., some details could be incomplete or not strongly evidenced), but **not enough to block approval**, especially since **no mandatory rules failed** and the coverage conclusion is **clearly covered**.
+
+### Quality checks on the assessment write-up
+Independent scoring of the assessment indicates it was:
+- **Complete:** 4.3 / 5  
+- **Consistent:** 4.1 / 5  
+- **Low hallucination risk:** 4.5 / 5  
+- **Clear:** 4.6 / 5  
+- **Overall:** 4.4 / 5  
+
+These scores support that the conclusion was reached in a structured, understandable way and is unlikely to contain unsupported statements.
+
+### Reference details
+- **Log ID:** 54fe83e7-36c8-4c0c-b050-e16699e0580b  
+- **Model/Prompt:** gpt-5.2 / disability_assess_claim_v1.0  
+- **Assessed at:** 2026-07-06T20:24:36.369528  
+
+**Bottom line:** The claim was approved because it satisfied all mandatory requirements, passed the relevant rule checks, and was assessed as clearly within policy coverage, with a medium (reasonable) level of confidence.",True,explain_disability_approve
+explain,CLM-0008,False,False,True,"**Claim ID: CLM-0008 — Assessment outcome: APPROVE (Confidence: MEDIUM)**  
+**Coverage conclusion: CLEARLY_COVERED**
+
+### What the decision is
+This claim has been **approved** because the assessment determined it is **clearly covered under the policy**, and there were **no mandatory/automatic-decline rules triggered**.
+
+### Why it was approved
+- **Coverage is clearly met:** The assessment concluded the claim falls within insured benefits and does not appear to be excluded or out of scope. That’s why the coverage conclusion is **CLEARLY_COVERED**.
+- **No mandatory failures:** The system checked required “must-pass” rules (items that would force a decline or referral if breached).  
+  - **Mandatory rules failed:** **0**  
+  This means none of the red-flag conditions that would block payment were found.
+- **Rules-based checks support approval:**  
+  - **Total rules passed:** **5**  
+  The checks that were run supported eligibility and payable status based on the available claim information.
+
+### Why the confidence is MEDIUM (not high)
+The recommendation is still **APPROVE**, but the confidence is **MEDIUM**, which typically indicates one or more of the following:
+- some claim details may be present but not fully complete or perfectly consistent, **or**
+- the assessment had enough information to approve, but not enough to rate it as the strongest/most certain case.
+
+This is consistent with the quality scores: overall quality is solid (**overall score 4.3/5**), but the tool flags a **moderate hallucination/uncertainty risk score (4.1/5)**—suggesting the model was generally reliable but still benefits from normal verification controls.
+
+### Summary for handling
+- **Proceed with approval/payment** as the claim is assessed as **clearly covered** and **no mandatory rules failed**.
+- Because confidence is **MEDIUM**, apply standard checks (e.g., routine document verification) if your process requires it, but **no decision change is indicated by the assessment**.
+
+Reference: log **e09c8b4a-2d83-41b5-a44f-b99d7ae24687**, assessed **2026-07-06 20:14:22** (model **gpt-5.2**, prompt **health_assess_claim_v1.0**).",True,explain_health_approve

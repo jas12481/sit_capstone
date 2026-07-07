@@ -1,0 +1,65 @@
+[
+  {
+    "test_id": "mda_ci_missing_specialist_report",
+    "app": "missing_docs",
+    "claim_id": "CLM-0061",
+    "predicted_missing": [
+      "Specialist medical report certifying the diagnosis (registered specialist)"
+    ],
+    "expected_missing": [
+      "specialist_medical_report"
+    ],
+    "precision": 0.0,
+    "recall": 0.0,
+    "all_requirements_met_correct": true,
+    "raw_response": "{\"all_requirements_met\": \"false\", \"missing_documents\": [{\"document_type\": \"Specialist medical report certifying the diagnosis (registered specialist)\", \"linked_rule_id\": \"RULE-CI-006\", \"reason\": \"RULE-CI-006 explicitly requires that a specialist report be included in the claim documents to certify the diagnosis.\"}], \"submitted_documents_summary\": \"No claim documents have been submitted (submitted list is empty).\"}"
+  },
+  {
+    "test_id": "mda_disability_missing_proof_of_occupation",
+    "app": "missing_docs",
+    "claim_id": "CLM-0042",
+    "predicted_missing": [
+      "proof_of_occupation"
+    ],
+    "expected_missing": [
+      "proof_of_occupation"
+    ],
+    "precision": 1.0,
+    "recall": 1.0,
+    "all_requirements_met_correct": true,
+    "raw_response": "{\"all_requirements_met\": \"false\", \"missing_documents\": [{\"document_type\": \"proof_of_occupation\", \"linked_rule_id\": \"RULE-DI-006\", \"reason\": \"For an occupational_disability claim, proof of occupation at the time of disability is mandatory under the Occupation Verification rule. No such document has been submitted.\"}], \"submitted_documents_summary\": \"Submitted 1 document: medical_report (satisfies RULE-DI-004 Medical Certification and supports RULE-DI-007 Self-inflicted Exclusion based on the report statement). No proof_of_occupation document is present for RULE-DI-006.\"}"
+  },
+  {
+    "test_id": "mda_ci_fully_documented",
+    "app": "missing_docs",
+    "claim_id": "CLM-0134",
+    "predicted_missing": [],
+    "expected_missing": [],
+    "precision": 1.0,
+    "recall": 1.0,
+    "all_requirements_met_correct": true,
+    "raw_response": "{\"all_requirements_met\": \"true\", \"missing_documents\": [], \"submitted_documents_summary\": \"Submitted: specialist_medical_report (Specialist Medical Report - CLM-0134.pdf). This satisfies RULE-CI-006 (Medical Certification). No other eligibility rules explicitly require additional documents.\"}"
+  },
+  {
+    "test_id": "mda_disability_fully_documented",
+    "app": "missing_docs",
+    "claim_id": "CLM-0006",
+    "predicted_missing": [],
+    "expected_missing": [],
+    "precision": 1.0,
+    "recall": 1.0,
+    "all_requirements_met_correct": true,
+    "raw_response": "{\"all_requirements_met\": \"true\", \"missing_documents\": [], \"submitted_documents_summary\": \"Submitted documents include: (1) medical_report (Medical Report - CLM-0006.pdf) which satisfies RULE-DI-004 Medical Certification and supports RULE-DI-007 Self-inflicted Exclusion (states not self-inflicted); and (2) proof_of_occupation (Proof of Occupation - CLM-0006.pdf) which satisfies RULE-DI-006 Occupation Verification for an occupational_disability claim category. No other eligibility rules provided explicitly require additional documents.\"}"
+  },
+  {
+    "test_id": "mda_life_fully_documented",
+    "app": "missing_docs",
+    "claim_id": "CLM-0052",
+    "predicted_missing": [],
+    "expected_missing": [],
+    "precision": 1.0,
+    "recall": 1.0,
+    "all_requirements_met_correct": true,
+    "raw_response": "{\"all_requirements_met\": \"true\", \"missing_documents\": [], \"submitted_documents_summary\": \"Submitted 1 document: police_report (Police Report - CLM-0052.pdf). This satisfies the accidental death evidence requirement (RULE-LI-005). No other eligibility rules provided explicitly require additional documents.\"}"
+  }
+]

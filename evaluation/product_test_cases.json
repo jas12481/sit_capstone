@@ -1,0 +1,161 @@
+{
+  "_meta": {
+    "description": "Ground truth for the 3 product-capability apps: Missing_Documentation_Advisor, Fraud_Anomaly_Risk_Signals, Explain_Assessment_Reasoning (Mode A — explaining an existing logged assessment). Each has its own metrics (product_metrics.py), since none of these produce an APPROVE/REJECT/REFER recommendation and none can be scored via recommendation_correct.",
+    "methodology_notes": [
+      "Missing_Documentation_Advisor: after the full dataset backfill (2026-07-06), essentially every claim in the dataset now has its required documents present — there were no naturally-occurring 'missing document' cases left to test detection against. 2 of the 5 cases below were deliberately constructed by deleting a specific claim_documents row (same legitimate approach already used for CLM-0248 earlier in the session) — documented per-case below, not hidden.",
+      "Fraud_Anomaly_Risk_Signals: 4 of the 5 cases reuse claims already empirically tested against the live app earlier in the session (real risk_level/flags responses observed, not just designed) — see scenario notes for what was actually observed. The 5th (CLM-0011) is a fresh single-claim/no-history baseline, logically clear-cut but not yet empirically re-verified against this exact prompt version.",
+      "Explain_Assessment_Reasoning (Mode A): assessment_logs now has ~100 real rows from tonight's repeated evaluation runs (each 'combined' call posts a real log via write_assessment_log) — including some stale pre-domain-check-fix mismatch artifacts (e.g. a health claim logged under workflow_type=life_assess_claim) and multiple re-runs of the same claim_id with different values (the same temperature-driven variance documented in test_claims.json). Ground truth below anchors to the actual current top (most recent, GET /assessment-logs?claim_id=X's natural ordering) entry for each claim_id, verified individually — not assumed from memory."
+    ]
+  },
+
+  "missing_documentation_advisor_cases": [
+    {
+      "test_id": "mda_ci_missing_specialist_report",
+      "claim_id": "CLM-0061",
+      "policy_type": "critical_illness",
+      "claim_category": "stroke",
+      "constructed": true,
+      "expected_all_requirements_met": false,
+      "expected_missing_document_types": ["specialist_medical_report"],
+      "expected_linked_rule_id": "RULE-CI-006",
+      "scenario": "Deliberately constructed: specialist_medical_report row deleted from claim_documents (2026-07-07) specifically to test detection, since the full dataset backfill left no naturally-occurring missing-document cases. Approved stroke claim, otherwise unremarkable."
+    },
+    {
+      "test_id": "mda_disability_missing_proof_of_occupation",
+      "claim_id": "CLM-0042",
+      "policy_type": "disability",
+      "claim_category": "occupational_disability",
+      "constructed": true,
+      "expected_all_requirements_met": false,
+      "expected_missing_document_types": ["proof_of_occupation"],
+      "expected_linked_rule_id": "RULE-DI-006",
+      "scenario": "Deliberately constructed: proof_of_occupation row deleted, medical_report deliberately left in place (2026-07-07) — tests that the advisor correctly flags only the missing document and does NOT re-request the medical_report that's still present. Approved occupational_disability claim."
+    },
+    {
+      "test_id": "mda_ci_fully_documented",
+      "claim_id": "CLM-0134",
+      "policy_type": "critical_illness",
+      "claim_category": "stroke",
+      "constructed": false,
+      "expected_all_requirements_met": true,
+      "expected_missing_document_types": [],
+      "scenario": "Has a specialist_medical_report with content_summary confirming diagnosis — the ci_edge test claim from test_claims.json (survival-period boundary), reused here since its documentation is genuinely complete."
+    },
+    {
+      "test_id": "mda_disability_fully_documented",
+      "claim_id": "CLM-0006",
+      "policy_type": "disability",
+      "claim_category": "occupational_disability",
+      "constructed": false,
+      "expected_all_requirements_met": true,
+      "expected_missing_document_types": [],
+      "scenario": "Has both medical_report (content_summary confirms not self-inflicted) and proof_of_occupation — the disability_approve test claim from test_claims.json, genuinely complete."
+    },
+    {
+      "test_id": "mda_life_fully_documented",
+      "claim_id": "CLM-0052",
+      "policy_type": "life",
+      "claim_category": "accidental_death",
+      "constructed": false,
+      "expected_all_requirements_met": true,
+      "expected_missing_document_types": [],
+      "scenario": "Has a coroner_report (or police_report) satisfying RULE-LI-005 — the life_refer test claim from test_claims.json, genuinely complete after the full backfill."
+    }
+  ],
+
+  "fraud_anomaly_cases": [
+    {
+      "test_id": "fraud_high_tight_clustering",
+      "claim_id": "CLM-0315",
+      "customer_id": "CUST-0206",
+      "expected_risk_level": "HIGH",
+      "expected_recommended_action": "flag_for_investigation",
+      "expected_signal_keywords": ["1 day", "cluster", "frequency"],
+      "scenario": "Real customer with 8 health claims on one policy (POL-HE-0052, sum assured 64,000) within under a year, two filed 1 day apart. Empirically confirmed HIGH/flag_for_investigation both before and after the prompt-calibration fix this session."
+    },
+    {
+      "test_id": "fraud_high_minimal_two_claim",
+      "claim_id": "CLM-0384",
+      "customer_id": "CUST-0256",
+      "expected_risk_level": "HIGH",
+      "expected_recommended_action": "flag_for_investigation",
+      "expected_signal_keywords": ["1 day", "same policy"],
+      "scenario": "Minimal case — just 2 disability claims total, but filed 1 day apart on the same policy (POL-DI-0064), different categories (occupational_disability then total_permanent_disability the next day). Empirically confirmed HIGH/flag_for_investigation — tests that it doesn't need a high claim count to notice a 1-day gap."
+    },
+    {
+      "test_id": "fraud_high_compounding",
+      "claim_id": "CLM-0639",
+      "customer_id": "CUST-0428",
+      "expected_risk_level": "HIGH",
+      "expected_recommended_action": "flag_for_investigation",
+      "expected_signal_keywords": ["1 day", "back-to-back"],
+      "scenario": "3 claims — two 1 day apart (Jan 28/29 2023), then one unrelated claim a year later. Empirically confirmed HIGH/flag_for_investigation — tests separating the suspicious pair from the unrelated later claim."
+    },
+    {
+      "test_id": "fraud_low_negative_control_spaced",
+      "claim_id": "CLM-0006",
+      "customer_id": "CUST-0004",
+      "expected_risk_level": "LOW",
+      "expected_recommended_action": "proceed_normally",
+      "expected_signal_keywords": [],
+      "scenario": "Negative control — 2 disability claims, 922 days apart, different categories, no clustering. Empirically confirmed LOW/proceed_normally after the prompt fix (this exact case originally failed pre-fix, incorrectly flagging MEDIUM risk purely for having 2+ claims — the fix that corrected this is documented in the plan file)."
+    },
+    {
+      "test_id": "fraud_low_negative_control_single_claim",
+      "claim_id": "CLM-0011",
+      "customer_id": "CUST-0010",
+      "expected_risk_level": "LOW",
+      "expected_recommended_action": "proceed_normally",
+      "expected_signal_keywords": [],
+      "scenario": "Negative control — customer has exactly 1 claim in their entire history (no other claims to compare against at all). Logically clear-cut (nothing to flag), but not yet empirically re-tested against the live app — worth running once during run_product_evaluation.py to confirm."
+    }
+  ],
+
+  "explain_assessment_reasoning_mode_a_cases": [
+    {
+      "test_id": "explain_ci_approve",
+      "claim_id": "CLM-0278",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence_level": "HIGH",
+      "expected_mandatory_rules_failed": 0,
+      "expected_total_rules_passed": 6,
+      "scenario": "Real logged assessment (ci_assess_claim), current top entry per GET /assessment-logs?claim_id=CLM-0278, verified 2026-07-07."
+    },
+    {
+      "test_id": "explain_ci_reject",
+      "claim_id": "CLM-0072",
+      "expected_recommendation": "REJECT",
+      "expected_confidence_level": "HIGH",
+      "expected_mandatory_rules_failed": 1,
+      "expected_total_rules_passed": 5,
+      "scenario": "Real logged assessment (ci_assess_claim), current top entry per GET /assessment-logs?claim_id=CLM-0072, verified 2026-07-07."
+    },
+    {
+      "test_id": "explain_life_approve",
+      "claim_id": "CLM-0630",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence_level": "MEDIUM",
+      "expected_mandatory_rules_failed": 0,
+      "expected_total_rules_passed": 4,
+      "scenario": "Real logged assessment (life_assess_claim), current top entry per GET /assessment-logs?claim_id=CLM-0630, verified 2026-07-07."
+    },
+    {
+      "test_id": "explain_disability_approve",
+      "claim_id": "CLM-0006",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence_level": "MEDIUM",
+      "expected_mandatory_rules_failed": 0,
+      "expected_total_rules_passed": 6,
+      "scenario": "Real logged assessment (disability_assess_claim), current top entry per GET /assessment-logs?claim_id=CLM-0006, verified 2026-07-07. Note: this claim_id also has stale mismatch-test log entries under other workflow_types from before the domain_check fix — GET /assessment-logs?claim_id=X returns most-recent-first so the correct row surfaces naturally, but be aware the table has this history if inspecting it directly."
+    },
+    {
+      "test_id": "explain_health_approve",
+      "claim_id": "CLM-0008",
+      "expected_recommendation": "APPROVE",
+      "expected_confidence_level": "MEDIUM",
+      "expected_mandatory_rules_failed": 0,
+      "expected_total_rules_passed": 5,
+      "scenario": "Real logged assessment (health_assess_claim), current top entry per GET /assessment-logs?claim_id=CLM-0008, verified 2026-07-07. This claim_id has ~10+ historical log entries from repeated testing tonight (some REJECT, some APPROVE, reflecting the temperature-driven variance documented in test_claims.json) — the current top one is the ground truth to test against, not the full history."
+    }
+  ]
+}

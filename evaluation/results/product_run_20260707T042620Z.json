@@ -1,0 +1,57 @@
+[
+  {
+    "test_id": "fraud_high_tight_clustering",
+    "app": "fraud",
+    "claim_id": "CLM-0315",
+    "predicted_risk_level": "HIGH",
+    "expected_risk_level": "HIGH",
+    "risk_level_correct": true,
+    "flag_precision": 0.2,
+    "flag_recall": 0.6666666666666666,
+    "raw_response": "{\"risk_level\": \"HIGH\", \"recommended_action\": \"flag_for_investigation\", \"flags\": [{\"signal\": \"High claim frequency / clustering in short windows\", \"explanation\": \"Customer has multiple claims close together: CLM-0317 (claim_date 2025-02-16), CLM-0321 (2025-03-26), and the target CLM-0315 (2025-03-27) occur within ~6 weeks, with two claims filed on consecutive days (03-26 and 03-27). This clustering is atypical and can indicate opportunistic claiming or billing issues.\"}, {\"signal\": \"Multiple high-severity acute claims in same policy year\", \"explanation\": \"Within 2025 there are several high-cost acute events across different categories (surgical, hospitalisation, emergency, outpatient) including cataract surgery, gastroenteritis hospitalisation, chest pain emergency (target), kidney stone hospitalisation, and later additional surgeries. The breadth and volume of significant events in a single year warrants review for medical plausibility and documentation consistency.\"}, {\"signal\": \"Repeated \\u2018emergency\\u2019 presentations with unclear/ruled-out diagnoses\", \"explanation\": \"Target claim is emergency for acute chest pain with cardiac event ruled out; later CLM-0320 is emergency for acute abdominal pain of unclear origin. Repeated ED use with non-definitive outcomes can be legitimate, but is also a known pattern in exaggerated/overbilled emergency claims; review itemized billing, triage acuity, and diagnostic workup alignment with charges.\"}, {\"signal\": \"Potential duplicate/overlapping care timeline around March 2025\", \"explanation\": \"Target incident_date is 2025-03-10 (filed 2025-03-27) and another hospitalisation claim CLM-0321 has incident_date 2025-03-18 (filed 2025-03-26). Two separate acute episodes in close succession (and filed essentially together) should be checked for overlap in admissions, double billing, or whether services from one episode were split across claims/providers.\"}, {\"signal\": \"Claim amounts consistently high across many submissions\", \"explanation\": \"Many claims are in the ~24k\\u201359k range, including outpatient at 27.7k and emergency/hospitalisation around 55\\u201358k. Consistently high amounts across diverse settings can indicate upcoding or unusually expensive provider billing; compare to typical benchmarks for the listed diagnoses/facilities and request full itemized invoices/clinical notes.\"}]}"
+  },
+  {
+    "test_id": "fraud_high_minimal_two_claim",
+    "app": "fraud",
+    "claim_id": "CLM-0384",
+    "predicted_risk_level": "HIGH",
+    "expected_risk_level": "HIGH",
+    "risk_level_correct": true,
+    "flag_precision": 0.25,
+    "flag_recall": 0.5,
+    "raw_response": "{\"risk_level\": \"HIGH\", \"recommended_action\": \"flag_for_investigation\", \"flags\": [{\"signal\": \"Multiple claims filed in a very short time window\", \"explanation\": \"Another claim (CLM-0385) was filed on 2018-03-04, one day before the target claim CLM-0384 (2018-03-05). Back-to-back filings can indicate claim stacking/duplication or opportunistic behavior.\"}, {\"signal\": \"Same policy with different disability categories filed nearly simultaneously\", \"explanation\": \"Both claims are on the same policy (POL-DI-0064) and both are disability claims, but with different categories (occupational_disability vs total_permanent_disability). This pattern can indicate overlapping benefits sought for the same underlying event or an escalation from a lesser to a more severe category.\"}, {\"signal\": \"Potential overlap/inconsistency in incident timing vs filings\", \"explanation\": \"CLM-0385 incident_date is 2018-01-05 and CLM-0384 incident_date is 2018-02-04, yet they are filed one day apart. Two separate disabling incidents within ~30 days leading to two near-simultaneous claims is unusual and warrants verification (medical evidence, work status timelines, and whether events are related).\"}, {\"signal\": \"Escalation in severity and amount across consecutive claims\", \"explanation\": \"The customer moved from an approved occupational disability claim (25,810.98) to a higher-amount total & permanent disability claim (36,590.19) immediately afterward, which may indicate benefit escalation or reclassification of the same condition/event.\"}]}"
+  },
+  {
+    "test_id": "fraud_high_compounding",
+    "app": "fraud",
+    "claim_id": "CLM-0639",
+    "predicted_risk_level": "HIGH",
+    "expected_risk_level": "HIGH",
+    "risk_level_correct": true,
+    "flag_precision": 0.2,
+    "flag_recall": 0.5,
+    "raw_response": "{\"risk_level\": \"HIGH\", \"recommended_action\": \"flag_for_investigation\", \"flags\": [{\"signal\": \"Multiple claims filed within a very short time window (back-to-back)\", \"explanation\": \"Excluding the target claim (CLM-0639 on 2023-01-28), the customer filed another disability claim the next day (CLM-0640 on 2023-01-29) on the same policy (POL-DI-0107). Closely spaced filings can indicate claim-stacking or opportunistic claiming and warrants review.\"}, {\"signal\": \"Overlapping/related disability categories on the same policy\", \"explanation\": \"The customer has multiple disability claims on the same policy across time, including total_temporary_disability (CLM-0640) and total_permanent_disability (CLM-0641), and the target claim is also total_permanent_disability. Repeated severe disability categories (TPD) and multiple disability types on one policy can be inconsistent depending on medical facts and benefit structure.\"}, {\"signal\": \"Repeat TPD (total_permanent_disability) claims on the same policy\", \"explanation\": \"Excluding CLM-0639, there is another TPD claim (CLM-0641) on 2024-02-09 under the same policy. Multiple TPD claims on one policy/customer is unusual (TPD is typically a one-time, high-severity event) and should be checked for duplicate/related incidents, reinstatement/new coverage periods, or misclassification.\"}, {\"signal\": \"Amounts are similar across claims (possible benefit maximization pattern)\", \"explanation\": \"Claim amounts are in a relatively tight band (approx. 19k\\u201326k) across multiple disability claims (CLM-0640: 19,313.92; CLM-0641: 26,289.47; target CLM-0639: 24,189.34). This can be legitimate (fixed benefits), but may also indicate structuring to match expected payout levels\\u2014verify against schedule of benefits and salary/income documentation.\"}, {\"signal\": \"High approval rate across repeated disability claims\", \"explanation\": \"All other claims (CLM-0640, CLM-0641) were approved with full approved_amount equal to claim_amount. Not inherently fraudulent, but repeated full approvals for multiple disability events can merit a quick integrity check (supporting medical evidence, employment/income verification, and consistency of diagnoses/impairments).\"}]}"
+  },
+  {
+    "test_id": "fraud_low_negative_control_spaced",
+    "app": "fraud",
+    "claim_id": "CLM-0006",
+    "predicted_risk_level": "MEDIUM",
+    "expected_risk_level": "LOW",
+    "risk_level_correct": false,
+    "flag_precision": null,
+    "flag_recall": null,
+    "raw_response": "{\"risk_level\": \"MEDIUM\", \"recommended_action\": \"flag_for_investigation\", \"flags\": [{\"signal\": \"Multiple disability claims on same policy (repeat-claim pattern)\", \"explanation\": \"Customer has another disability claim on the same policy (CLM-0005: partial_permanent_disability) prior to the current occupational_disability claim (CLM-0006). Repeated claims under the same line/policy can indicate elevated risk and warrants review for consistency of incident details and medical/occupational evidence.\"}, {\"signal\": \"Prior related claim remains pending for an extended period\", \"explanation\": \"CLM-0005 (filed 2022-08-08) is still marked pending. A new approved claim (CLM-0006) while an earlier disability claim remains unresolved is atypical and may indicate process/system anomalies or inconsistent documentation across claims that should be reconciled.\"}, {\"signal\": \"Category shift within disability claims (partial permanent vs occupational)\", \"explanation\": \"The prior claim is categorized as partial_permanent_disability while the current is occupational_disability. A category change isn\\u2019t inherently suspicious, but it increases the need to validate that impairments/incidents are distinct and that disability classification aligns with medical and job-duty records.\"}]}"
+  },
+  {
+    "test_id": "fraud_low_negative_control_single_claim",
+    "app": "fraud",
+    "claim_id": "CLM-0011",
+    "predicted_risk_level": "LOW",
+    "expected_risk_level": "LOW",
+    "risk_level_correct": true,
+    "flag_precision": null,
+    "flag_recall": null,
+    "raw_response": "{\"risk_level\": \"LOW\", \"recommended_action\": \"proceed_normally\", \"flags\": [{\"signal\": \"No prior claims history to establish patterns\", \"explanation\": \"The customer\\u2019s provided claims history contains only the current claim (CLM-0011). With no other distinct claims to compare against, there are no detectable patterns such as repeated claim categories, rapid successive filings, escalating amounts, or clustering near coverage limits.\"}, {\"signal\": \"Single outpatient claim with routine diagnosis at network facility\", \"explanation\": \"The claim is for a routine specialist consultation for hypertension management at an approved network facility, and it was approved as submitted. Nothing in the provided data indicates abnormal claim behavior (e.g., repeated similar events, multiple providers, or unusual frequency), though limited history reduces detection sensitivity.\"}]}"
+  }
+]
