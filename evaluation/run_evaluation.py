@@ -83,10 +83,20 @@ def _http_get_json(path: str) -> dict:
 
 
 def _call_dify_workflow(api_key: str, claim_id: str, timeout: int = 120) -> dict:
-    """POST to Dify's workflow API (not chat-messages — these are Workflow-mode apps)."""
+    """
+    POST to Dify's workflow API using response_mode: streaming (Server-Sent Events), not
+    blocking. Combined's ~7-chained-LLM-call pipeline intermittently exceeds an intermediate
+    gateway's synchronous timeout (~80-100s, observed as a 504 well under our own client
+    timeout) in blocking mode. Streaming keeps the connection alive with progressive
+    node_started/node_finished events, avoiding that idle-connection timeout entirely — the
+    `timeout` param below is a per-read inactivity timeout, not a total-duration cap.
+
+    Returns the same {"data": {...outputs, status, error...}} shape blocking mode returned,
+    so callers/parsers don't need to change.
+    """
     body = json.dumps({
         "inputs": {"claim_id": claim_id, "query": "assess this claim"},
-        "response_mode": "blocking",
+        "response_mode": "streaming",
         "user": "run_evaluation_script",
     }).encode("utf-8")
     req = urllib.request.Request(
@@ -103,7 +113,17 @@ def _call_dify_workflow(api_key: str, claim_id: str, timeout: int = 120) -> dict
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.load(r)
+        for raw_line in r:
+            line = raw_line.decode("utf-8").strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[len("data:"):].strip()
+            if not payload:
+                continue
+            event = json.loads(payload)
+            if event.get("event") == "workflow_finished":
+                return {"data": event.get("data", {})}
+    raise RuntimeError("Stream ended without a workflow_finished event")
 
 
 def _parse_direct_or_cot(outputs: dict) -> tuple[str | None, list[str], str]:
@@ -121,7 +141,10 @@ def _parse_structured(outputs: dict) -> tuple[str | None, list[str], str, str | 
 
 
 def _parse_combined(outputs: dict) -> tuple[str | None, list[str], str, str | None]:
-    raw = outputs.get("final_report", "") or ""
+    # final_report_mismatch is populated instead of final_report when the workflow's own
+    # domain_check code/if-else node detects claim.claim_type doesn't match this workflow's
+    # domain — a deterministic short-circuit, not an LLM inference.
+    raw = outputs.get("final_report") or outputs.get("final_report_mismatch") or ""
     try:
         parsed = json.loads(raw)
     except (json.JSONDecodeError, TypeError):

@@ -1,0 +1,2 @@
+actual,claim_id,confidence,correct,expected,hallucinated_rule_count,mlflow_run_id,policy_type,run_name,strategy,test_id
+APPROVE,CLM-0278,HIGH,True,APPROVE,0,ccdfb892e47c45d9a53b5ad7f6bce252,critical_illness,combined_critical_illness_CLM-0278,combined,ci_approve

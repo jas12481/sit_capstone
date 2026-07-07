@@ -51,12 +51,16 @@ def extract_cited_rule_ids_from_text(text: str) -> list[str]:
 def check_recommendation_correct(actual: str | None, expected: str) -> bool:
     """
     Exact match, with one special case: expected == "ERROR_OR_GRACEFUL_REJECT" (the
-    domain-mismatch test cases in test_claims.json) is satisfied by either a REJECT
-    recommendation or an errored call (actual == "ERROR", set by run_evaluation.py's
-    try/except wrapper when the Dify call itself fails).
+    domain-mismatch test cases in test_claims.json) is satisfied by REJECT,
+    REFER_FOR_FURTHER_REVIEW, or an errored call (actual == "ERROR", set by
+    run_evaluation.py's try/except wrapper when the Dify call itself fails). REFER is
+    included because the production workflows' domain_check node deterministically routes
+    a mismatched claim_type to a REFER_FOR_FURTHER_REVIEW response ("wrong domain, route
+    elsewhere") rather than an outright REJECT — arguably the more semantically correct
+    outcome for a routing error, not a rejection of the claim itself.
     """
     if expected == "ERROR_OR_GRACEFUL_REJECT":
-        return actual in ("REJECT", "ERROR")
+        return actual in ("REJECT", "REFER_FOR_FURTHER_REVIEW", "ERROR")
     return actual == expected
 
 

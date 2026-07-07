@@ -1,0 +1,15 @@
+[
+  {
+    "test_id": "ci_approve",
+    "strategy": "combined",
+    "run_name": "combined_critical_illness_CLM-0278",
+    "claim_id": "CLM-0278",
+    "policy_type": "critical_illness",
+    "expected": "APPROVE",
+    "actual": "APPROVE",
+    "correct": true,
+    "hallucinated_rule_count": 0,
+    "confidence": "HIGH",
+    "mlflow_run_id": "ccdfb892e47c45d9a53b5ad7f6bce252"
+  }
+]
