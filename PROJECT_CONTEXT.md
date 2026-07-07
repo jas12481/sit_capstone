@@ -627,6 +627,43 @@ This corrects two things discovered during implementation, not just cosmetic:
 
 When prompts are updated via DSL Change Management, increment version. Log `prompt_version` to `assessment_logs`.
 
+### Prompt Registry UI — Databricks Free Edition gap, and the local mirror workaround
+
+The registry itself is fully real and queryable (confirmed via `evaluation/list_prompt_registry.py` — all
+79 prompts, full version history) but **this Databricks Free Edition workspace has no browsable UI for
+it**. Investigated directly rather than assumed:
+- Checked Catalog Explorer's Models tab and the `Claims_Assessment_Prompting_Study` experiment's own tab
+  list (Runs / Models / Traces) — no Prompts tab in either.
+- Per Databricks' own docs, the Prompts tab requires (a) the experiment tagged with
+  `mlflow.promptRegistryLocation` = `catalog.schema` — confirmed via API this tag did not exist, then set
+  it to `workspace.default` directly via `MlflowClient().set_experiment_tag(...)`; and (b) the schema-level
+  `EXECUTE` and `MANAGE` Unity Catalog privileges — confirmed via
+  `GET /api/2.1/unity-catalog/permissions/schema/workspace.default` that the account only has
+  `CREATE_FUNCTION, CREATE_MATERIALIZED_VIEW, CREATE_MODEL, CREATE_TABLE, CREATE_VOLUME, USE_SCHEMA` —
+  **`EXECUTE` and `MANAGE` are both missing**. Also confirmed via `GET /api/2.1/unity-catalog/catalogs`
+  that no `main` catalog exists in this workspace (only `workspace`, `samples`, `system`), so the "trial
+  accounts get `main.default`" note in Databricks' docs doesn't apply here regardless.
+- Couldn't find an official source stating plainly "Free Edition has no Prompt Registry UI" one way or
+  the other — the official Free Edition limitations page doesn't mention MLflow/GenAI features at all.
+  Left as an accepted, unresolved ambiguity (missing privileges vs. a Beta-feature gate vs. a hard Free
+  Edition limit) rather than chased further — a deliberate scope decision, not an oversight.
+
+**Workaround (self-hosted local mirror, not a fix to the above):**
+- `evaluation/sync_prompt_registry_local.py` — reads every prompt + full version history from Databricks,
+  then replays it into a separate, self-hosted MLflow server (`mlflow server --backend-store-uri
+  sqlite:///...`), which *does* render a normal Prompts UI since it's not Unity-Catalog-backed. Re-run
+  after any real prompt change on Databricks to refresh the mirror (note: re-running without a real
+  change creates duplicate-but-identical version numbers locally — harmless for browsing, just not a
+  strict 1:1 version-count mirror).
+- `evaluation/start_local_prompt_registry.sh` — starts the local server at `http://127.0.0.1:5001`,
+  backed by `mlflow_local_registry/mlflow.db` (gitignored — generated data, not source).
+- Databricks stays the actual source of truth for governance (`assessment_logs.mlflow_run_id` links only
+  to Databricks runs); the local server is a browsing convenience only, evaluated and explicitly scoped
+  down from an earlier, abandoned plan to permanently deploy this to Render with a Postgres backend and
+  HTTP Basic Auth (built and locally verified working, then deliberately discarded in favor of the
+  simpler localhost-only approach once the Free Edition ambiguity above was found not worth resolving
+  via extra infrastructure).
+
 ### Evaluation Experiment — Parameters and Metrics
 
 **Parameters per run:**
@@ -670,10 +707,17 @@ After every assessment, an additional LLM node reads the full report and scores 
 
 | Dimension | What It Checks | Score |
 |---|---|---|
-| **Completeness** | All rules checked, checklist present, payable amount calculated, next action clear | 0-1 |
-| **Consistency** | Recommendation aligns with rule verdicts, confidence matches failure count | 0-1 |
-| **Hallucination Risk** | Rule IDs valid, clause numbers plausible, all figures traceable to input | 0-1 (1 = no hallucination) |
-| **Clarity** | Professional language, usable as case note, recommendation unambiguous | 0-1 |
+| **Completeness** | All rules checked, checklist present, payable amount calculated, next action clear | 1.0-5.0 |
+| **Consistency** | Recommendation aligns with rule verdicts, confidence matches failure count | 1.0-5.0 |
+| **Hallucination Risk** | Rule IDs valid, clause numbers plausible, all figures traceable to input | 1.0-5.0 (5 = no hallucination) |
+| **Clarity** | Professional language, usable as case note, recommendation unambiguous | 1.0-5.0 |
+
+**Correction (confirmed 2026-07-06 from the actual deployed `llm_judge` node prompt during evaluation-harness
+build):** the real scale is **1.0–5.0**, not 0-1 as originally drafted here — `evaluation/metrics.py` and
+`evaluation/prompt_advisor.py` (`JUDGE_SCORE_FIELDS`) both match the actual deployed behavior. Across
+`prompt_advisor.py`'s first real run (all 4 `*_Assess_Claim` workflows, 20-run window each),
+`hallucination_risk` came back weakest for every workflow (3.95-4.12/5.0), which is what drove its 8
+real submitted `change_approvals` suggestions — see §15.
 
 ### Dify Implementation
 
@@ -771,44 +815,66 @@ A Python script (`evaluation/prompt_advisor.py`) that monitors MLflow quality me
 
 Closes the continuous improvement loop. Without it, prompt improvements rely on the developer manually reviewing MLflow results. With it, the system surfaces specific, data-driven improvement suggestions automatically — directly implementing MAS AIRG "capabilities and capacity — continuous improvement" and IMDA "Operations Management — monitoring and review."
 
-### The Full Flow
+### The Full Flow (as actually implemented, run for real 2026-07-07)
 
 ```
-python evaluation/prompt_advisor.py --workflow life --last-n-runs 20
+python evaluation/prompt_advisor.py --workflow life_assess_claim   # or --workflow all
   ↓
-Query MLflow for last N runs of specified workflow
+GET /assessment-logs?workflow_type=X&limit=20 (the real production audit trail, not MLflow runs
+directly — MLflow research-study runs don't carry judge scores the same way)
   ↓
-Identify node with lowest average judge score + most common flagged_issues
+Average the 4 judge score fields across those logs; pick the lowest-scoring dimension
   ↓
-Fetch current prompt from MLflow Prompt Registry
+Map that dimension → responsible node(s) via a fixed table:
+  hallucination_risk → rule_by_rule_eligibility_check, policy_document_analysis
+  clarity            → format_final_report
+  completeness / consistency → synthesize_final_verdict
   ↓
-Call GPT-5.2 with: current prompt + average scores + flagged issues
-  → Returns: improved prompt text + reasoning for each change
+Look up each node's current prompt: MlflowClient().search_prompt_versions(name) → latest version →
+mlflow.genai.load_prompt(name, version=latest)
+  ↓
+Append a deterministic, heuristic guardrail clause for that dimension (no live LLM call drafts
+this — see Key Design Decision below)
   ↓
 POST to MCP /change-approvals:
   changed_by = "prompt_advisor_agent"
-  diff_content = diff + agent reasoning
-  workflow_name, node_name
+  diff_content = dsl_manager.diff.compute_diff(old, new, node_name, "llm")  (reused, not reimplemented)
+  workflow_name, node_name, new_content, new_hash
   ↓
-Human sees suggestion in DSL Management UI
+Human sees suggestion in DSL Management UI (frontend/app/dsl/page.tsx — no frontend changes needed)
   ↓
-Reviews diff + reasoning → Approves or Rejects
+Reviews diff → Approves or Rejects
   ↓
 If Approved → standard DSL change management flow
 ```
+
+**Real result of running this against all 4 production workflows**: every single one came back with
+`hallucination_risk` as the weakest dimension (3.95-4.12/5.0 average) — 8 real pending `change_approvals`
+rows created (2 nodes × 4 workflows), each with the guardrail: *"cite only rule IDs, clause references,
+and document types that literally appear in the provided input data — never invent, infer, or assume an
+identifier that isn't explicitly present."*
 
 ### Key Design Decision
 
 The agent deliberately does not auto-apply changes. Under IMDA and MAS AIRG, AI systems in high-stakes domains must maintain human oversight. A prompt change in an eligibility assessment system is equivalent to a rule change in underwriting — it must be reviewed by a named person.
 
-### Key Functions
+**Second, discovered-during-build design decision**: the improvement itself is a **deterministic heuristic
+template per dimension** (`DIMENSION_AUGMENTATIONS` in the script), not an LLM-drafted rewrite as
+originally sketched here. Reason: no OpenAI API key exists anywhere in this repo's env files, and none of
+the 6 new Dify apps built this session are suited to free-form prompt-authoring (they're all hardcoded for
+claim assessment or research-recommendation tasks, not general text generation). This still fully
+satisfies the governance requirement — the suggestion still lands as a PENDING row requiring human
+sign-off — it's just template-based rather than model-generated.
+
+### Key Functions (actual, `evaluation/prompt_advisor.py`)
 
 ```python
-get_recent_runs(workflow_type, n)       # Query MLflow for last N runs
-identify_weakest_node(runs)             # Find node with lowest average judge score
-get_current_prompt(workflow_name, node) # Fetch from MLflow Prompt Registry
-generate_improvement(prompt, scores, issues) # Call GPT-5.2 for suggestion
-submit_for_approval(workflow, node, current, suggested, reasoning) # POST to MCP
+find_weakest_dimension(workflow_type, limit=20)  # averages 4 judge fields from GET /assessment-logs
+find_node_id(workflow_name, node_name)           # looks up the stored node's real UUID via GET /workflow-nodes
+draft_improved_prompt(workflow_type, node_name, dimension, dry_run) # loads current prompt, appends
+                                                                     # DIMENSION_AUGMENTATIONS text,
+                                                                     # posts to /change-approvals
+run_for_workflow(workflow_type, dry_run)         # orchestrates the above per workflow
 ```
 
 ### Regulatory Mapping
@@ -985,9 +1051,13 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | 3 new product-capability Dify apps | ✅ Done | `Explain_Assessment_Reasoning` (dual-mode: explains a logged verdict, or does a fresh walkthrough if none exists), `Fraud_Anomaly_Risk_Signals`, `Missing_Documentation_Advisor` — each independently valuable, none produce an APPROVE/REJECT/REFER recommendation. Built manually in Dify UI from generated DSL, imported, tested against real claim data; prompts recalibrated once each (Fraud app was over-flagging any 2+-claim customer; Missing Docs app was hallucinating non-existent rule IDs for generic real-world doc requirements) |
 | 3 new research-only Dify apps | ✅ Done | `Direct_Research`, `CoT_Research`, `Structured_Research` — minimal single-LLM-node apps isolating the 2×2 (reasoning × structure) design for the prompting-strategy study; Combined reuses the existing 4 production `*_Assess_Claim` workflows unchanged |
 | MLflow Prompt Registry | ✅ Done | `evaluation/register_prompts.py` — 79 LLM prompts registered as `workspace.default.{workflow}_{node}_v1_0` (UC-qualified naming, see §12) |
-| Evaluation script (80 runs) | 🟨 In progress | Structure defined; full execution pending |
+| Local MLflow Prompt Registry viewer | ✅ Done | Databricks Free Edition has no browsable Prompts UI (investigated, see §12) — `evaluation/sync_prompt_registry_local.py` mirrors all 79 prompts/109 versions into a self-hosted local server; `evaluation/start_local_prompt_registry.sh` launches it at `http://127.0.0.1:5001` |
+| `GET /claim-documents` endpoint | ✅ Done | `mcp_server/main.py` — returns `[]` (not 404) for a claim with no documents, a deliberate deviation from the file's other 404-on-empty endpoints |
+| Full dataset consistency backfill | ✅ Done | `backfill_claim_evidence.py` — added `claims.diagnosis`, `claims.condition_is_pre_existing`, `claim_documents.content_summary` columns; backfilled all ~1034 health / 83 CI / 353 disability / 18 life-accidental_death claims (not just test-case claims), fixing a structural gap where 3 of 4 policy types could never produce a clean, evidence-backed APPROVE |
+| Evaluation study — 4-strategy research harness | ✅ Done | `evaluation/test_claims.json` (20 cases) + `metrics.py` + `run_evaluation.py`; final validated Combined result 18/20 (90%), mismatch detection 4/4 (100%); Direct/CoT/Structured recorded per condition. 3 real production-workflow bugs found and fixed along the way: missing `claim_documents` visibility, domain-mismatch detection, non-deterministic rule counting (see `evaluation/results/`) |
+| Product-capability evaluation harness | ✅ Done | `evaluation/product_test_cases.json` (15 cases) + `product_metrics.py` + `run_product_evaluation.py`; final validated: Missing Docs Advisor 5/5, Fraud/Anomaly Signals 4/5, Explain Assessment Reasoning 5/5 |
 | dsl_manager/ (parser, diff, approvals, git) | ✅ Done | parser, diff, approvals, git_commit, __main__ CLI |
-| evaluation/prompt_advisor.py | 🔲 To build | Reads MLflow, proposes improvements |
+| evaluation/prompt_advisor.py | ✅ Done | Deterministic heuristic-based (no LLM call — no OpenAI key available, see §15); real run against all 4 production workflows created 8 pending `change_approvals` rows, all correctly flagging `hallucination_risk` as weakest dimension |
 | Frontend — all 4 views | ✅ Done | Next.js 14, Tailwind, Recharts — Chat, Audit Log, Dashboard, DSL Management |
 | Dify key removed from client bundle | ✅ Done | Chat view now proxies through `app/api/dify/chat/route.ts`; was previously `NEXT_PUBLIC_DIFY_API_KEY`, shipped to the browser — rotated after the fix |
 | DSL scan/extraction consolidated | ✅ Done | `mcp_server/main.py` now imports `dsl_manager/parser.py` + `diff.py` instead of duplicating extraction logic; fixed a `node_id` UUID bug and missing `change_approvals` columns (`node_type`, `new_content`, `new_hash`) surfaced by the fix |
@@ -1001,9 +1071,8 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 | Period | Target |
 |---|---|
-| **Now (late June)** | DSL Change Management System — `dsl_manager/` modules (`parser.py`, `diff.py`, `approvals.py`, `git_commit.py`); Prompt Advisor (`evaluation/prompt_advisor.py`) |
-| **Next** | Frontend — all 4 views (Chat, Audit Log, Dashboard, DSL Management) |
-| **Then** | Register all prompts in MLflow Prompt Registry as v1.0; run evaluation study (80 runs × 4 strategies) |
+| **Late June** | DSL Change Management System — `dsl_manager/` modules (`parser.py`, `diff.py`, `approvals.py`, `git_commit.py`); Okta SSO for `/dsl` |
+| **Done (2026-07-06/07)** | Frontend — all 4 views; MLflow Prompt Registry (79 prompts) + local viewer; 6 new Dify apps (3 product capabilities + 3 research-only); full dataset consistency backfill; 4-strategy research harness (18/20 final); 3-app product-capability harness (14/15 final); `evaluation/prompt_advisor.py` run for real (8 pending approvals) |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
