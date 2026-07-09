@@ -317,6 +317,7 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50">
@@ -367,6 +368,7 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

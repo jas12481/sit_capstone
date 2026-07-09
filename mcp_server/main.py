@@ -169,6 +169,45 @@ def get_claim_documents(
     # (a claim with no documents yet submitted) — return [] rather than 404.
     return response.data or []
 
+# ── FRAUD RISK CHECKS ─────────────────────────────────────────────────────────
+# Persists results from the Fraud/Anomaly Risk Signals Dify app so the Audit
+# Log can show a badge without re-running the check, and the Dashboard can
+# aggregate risk levels/flag signals across every claim checked so far.
+
+class FraudRiskCheckCreate(BaseModel):
+    claim_id: str
+    risk_level: str
+    flags: Optional[List[dict]] = None
+    recommended_action: Optional[str] = None
+    checked_by: Optional[str] = None
+
+
+@app.post("/fraud-risk-checks")
+def create_fraud_risk_check(check: FraudRiskCheckCreate):
+    data = {k: v for k, v in check.dict().items() if v is not None}
+    response = supabase.table("fraud_risk_checks").insert(data).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to store fraud risk check")
+    return response.data[0]
+
+
+@app.get("/fraud-risk-checks")
+def get_fraud_risk_checks(
+    claim_id: Optional[str] = Query(None),
+    risk_level: Optional[str] = Query(None),
+    limit: int = Query(500)
+):
+    query = supabase.table("fraud_risk_checks").select("*")
+    if claim_id:
+        query = query.eq("claim_id", claim_id)
+    if risk_level:
+        query = query.eq("risk_level", risk_level)
+    query = query.order("checked_at", desc=True).limit(limit)
+    response = query.execute()
+    # An empty result is a legitimate state (no claims checked yet) — same
+    # convention as /claim-documents, not a 404.
+    return response.data or []
+
 # ── ASSESSMENT LOGS ───────────────────────────────────────────────────────────
 
 class AssessmentLogCreate(BaseModel):

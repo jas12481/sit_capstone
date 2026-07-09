@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { getAssessmentLogs, type AssessmentLog } from '@/lib/mcp';
+import { getAssessmentLogs, getFraudRiskChecks, type AssessmentLog, type FraudRiskCheck } from '@/lib/mcp';
 
 function toPercent(score: number): number {
   if (score <= 1) return Math.round(score * 100);
@@ -20,6 +20,15 @@ const COLOURS = {
   PENDING: '#94a3b8',
 };
 const DOMAIN_COLOURS = ['#3b5bdb', '#7c3aed', '#0891b2', '#059669'];
+const RISK_COLOURS: Record<string, string> = { LOW: '#22c55e', MEDIUM: '#f59e0b', HIGH: '#ef4444' };
+
+function RiskPill({ level }: { level: string }) {
+  const colour =
+    level === 'HIGH' ? 'bg-red-100 text-red-800' :
+    level === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+    'bg-green-100 text-green-800';
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colour}`}>{level}</span>;
+}
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -33,6 +42,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 export default function DashboardPage() {
   const [logs, setLogs] = useState<AssessmentLog[]>([]);
+  const [fraudChecks, setFraudChecks] = useState<FraudRiskCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -41,6 +51,9 @@ export default function DashboardPage() {
       .then(setLogs)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+    getFraudRiskChecks({ limit: 500 })
+      .then(setFraudChecks)
+      .catch(() => {}); // non-critical — Risk Signals section just shows empty state
   }, []);
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
@@ -56,7 +69,9 @@ export default function DashboardPage() {
   const totalAssessments = logs.length;
   const approveRate = (logs.filter(l => l.recommendation === 'APPROVE').length / totalAssessments * 100).toFixed(0);
   const avgJudge = toPercent(logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / totalAssessments);
-  const avgHallucinationRisk = toPercent(logs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / totalAssessments);
+  // Judge rubric scores this dimension "higher = lower risk / safer" (see Life_Assess_Claim.yml's
+  // llm_judge node) — invert to show the actual risk percentage (lower = better, as labelled).
+  const avgHallucinationRisk = 100 - toPercent(logs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / totalAssessments);
 
   // Recommendation distribution
   const recCounts: Record<string, number> = {};
@@ -77,13 +92,41 @@ export default function DashboardPage() {
       i: i + 1,
       overall: toPercent(l.judge_overall_score),
         completeness: toPercent(l.judge_completeness_score),
-        hallucination: toPercent(l.judge_hallucination_risk_score),
+        hallucination: 100 - toPercent(l.judge_hallucination_risk_score),
     }));
 
   // Confidence distribution
   const confCounts: Record<string, number> = {};
   logs.forEach(l => { if (l.confidence_level) confCounts[l.confidence_level] = (confCounts[l.confidence_level] || 0) + 1; });
   const confData = Object.entries(confCounts).map(([name, value]) => ({ name, value }));
+
+  // Fraud/Anomaly Risk Signals — aggregated from whatever's been checked so
+  // far via the Audit Log (this app is on-demand, not a full-portfolio scan,
+  // so this grows as claims officers check individual claims). Dedupe to one
+  // (latest) check per claim first — fraudChecks is an event log ordered by
+  // checked_at desc, so a re-checked claim would otherwise be double-counted
+  // and could show a stale risk level alongside its current one.
+  const latestFraudChecks = (() => {
+    const byClaimId: Record<string, FraudRiskCheck> = {};
+    for (const c of fraudChecks) {
+      if (!byClaimId[c.claim_id]) byClaimId[c.claim_id] = c;
+    }
+    return Object.values(byClaimId);
+  })();
+
+  const riskLevelCounts: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0 };
+  latestFraudChecks.forEach(c => { riskLevelCounts[c.risk_level] = (riskLevelCounts[c.risk_level] || 0) + 1; });
+  const riskLevelData = ['LOW', 'MEDIUM', 'HIGH'].map(name => ({ name, value: riskLevelCounts[name] || 0 }));
+  const highRiskClaims = latestFraudChecks.filter(c => c.risk_level === 'HIGH').slice(0, 5);
+
+  // signal is free text (a per-claim descriptive summary, not a fixed category) so a
+  // "most common signal" count would be near-meaningless — show the raw recent flags instead.
+  // LOW-risk checks are excluded here — nothing worth surfacing to a reviewer at that level.
+  const recentFlags = latestFraudChecks
+    .filter(c => c.risk_level !== 'LOW')
+    .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())
+    .flatMap(c => (c.flags || []).map(f => ({ claim_id: c.claim_id, risk_level: c.risk_level, ...f })))
+    .slice(0, 8);
 
   return (
     <div className="p-6 space-y-6">
@@ -114,14 +157,14 @@ export default function DashboardPage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                labelLine={false}
               >
                 {recData.map(entry => (
                   <Cell key={entry.name} fill={COLOURS[entry.name as keyof typeof COLOURS] || '#94a3b8'} />
                 ))}
               </Pie>
               <Legend formatter={v => v.replace(/_/g, ' ')} />
-              <Tooltip formatter={(v, n) => [v, (n as string).replace(/_/g, ' ')]} />
+              <Tooltip formatter={(v: number, n) => [`${v} (${((v / totalAssessments) * 100).toFixed(0)}%)`, (n as string).replace(/_/g, ' ')]} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -176,6 +219,75 @@ export default function DashboardPage() {
               <Bar dataKey="value" fill="#3b5bdb" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Fraud/Anomaly Risk Signals — accumulates as claims are checked via the Audit Log */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mt-2">Risk Signals</h2>
+      </div>
+      {latestFraudChecks.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center py-10">
+          No claims checked for fraud/anomaly signals yet. Use the &quot;Check for fraud signals&quot; action in the Audit Log.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Risk Level Distribution</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={riskLevelData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {riskLevelData.map(entry => (
+                    <Cell key={entry.name} fill={RISK_COLOURS[entry.name] || '#94a3b8'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Recent Flags Raised</h2>
+            {recentFlags.length > 0 ? (
+              <ul className="divide-y divide-gray-100 text-sm max-h-[220px] overflow-y-auto">
+                {recentFlags.map((f, i) => (
+                  <li key={i} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-500">{f.claim_id}</span>
+                      <RiskPill level={f.risk_level} />
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{f.explanation || f.signal}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-400 text-center py-16">No flags raised in any check so far.</div>
+            )}
+          </div>
+
+          {highRiskClaims.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5 col-span-2">
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">High-Risk Claims Needing Follow-up</h2>
+              <ul className="divide-y divide-gray-100 text-sm">
+                {highRiskClaims.map(c => (
+                  <li key={c.id} className="py-2 flex items-start justify-between gap-4">
+                    <div>
+                      <span className="font-mono text-xs text-gray-700">{c.claim_id}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {(c.flags || []).map(f => f.signal).join(', ') || 'No specific signal recorded'}
+                      </p>
+                    </div>
+                    <span className="text-xs text-red-700 bg-red-50 rounded-full px-2 py-0.5 whitespace-nowrap">
+                      {c.recommended_action?.replace(/_/g, ' ')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

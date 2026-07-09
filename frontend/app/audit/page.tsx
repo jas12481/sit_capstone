@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { getAssessmentLogs, type AssessmentLog } from '@/lib/mcp';
+import { getAssessmentLogs, getFraudRiskChecks, runFraudRiskCheck, createFraudRiskCheck, type AssessmentLog, type FraudRiskCheck } from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
 const RECOMMENDATIONS = ['APPROVE', 'REJECT', 'REFER_FOR_FURTHER_REVIEW', 'PENDING'];
@@ -26,6 +26,18 @@ function ScoreBadge({ score }: { score: number }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colour}`}>
       {pct}%
+    </span>
+  );
+}
+
+function RiskBadge({ level }: { level: string }) {
+  const colour =
+    level === 'HIGH' ? 'bg-red-100 text-red-800' :
+    level === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+    'bg-green-100 text-green-800';
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${colour}`}>
+      {level}
     </span>
   );
 }
@@ -55,6 +67,45 @@ export default function AuditPage() {
   const [confFilter, setConfFilter] = useState('');
   const [claimFilter, setClaimFilter] = useState('');
 
+  // Fraud/Anomaly Risk Signals — on-demand per-row check, persisted so a
+  // claim only needs to be checked once (latest result wins if re-checked).
+  const [fraudChecks, setFraudChecks] = useState<Record<string, FraudRiskCheck>>({});
+  const [checkingClaimId, setCheckingClaimId] = useState<string | null>(null);
+  const [fraudError, setFraudError] = useState<string | null>(null);
+
+  function loadFraudChecks() {
+    getFraudRiskChecks({ limit: 500 })
+      .then(checks => {
+        // Results are ordered latest-first — keep only the first (most recent) per claim
+        const byClaimId: Record<string, FraudRiskCheck> = {};
+        for (const c of checks) {
+          if (!byClaimId[c.claim_id]) byClaimId[c.claim_id] = c;
+        }
+        setFraudChecks(byClaimId);
+      })
+      .catch(() => {}); // non-critical — badges just won't show until this loads
+  }
+
+  async function handleFraudCheck(claimId: string) {
+    setCheckingClaimId(claimId);
+    setFraudError(null);
+    try {
+      const result = await runFraudRiskCheck(claimId);
+      const saved = await createFraudRiskCheck({
+        claim_id: claimId,
+        risk_level: result.risk_level,
+        flags: result.flags,
+        recommended_action: result.recommended_action,
+        checked_by: 'audit_log_ui',
+      });
+      setFraudChecks(prev => ({ ...prev, [claimId]: saved }));
+    } catch (e) {
+      setFraudError(e instanceof Error ? e.message : 'Fraud check failed');
+    } finally {
+      setCheckingClaimId(null);
+    }
+  }
+
   // Fetch everything once (server handles pagination via limit)
   useEffect(() => {
     setLoading(true);
@@ -63,6 +114,7 @@ export default function AuditPage() {
       .then(setAllLogs)
       .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
+    loadFraudChecks();
   }, []);
 
   // Derive unique workflow types from actual data
@@ -199,6 +251,12 @@ export default function AuditPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
       )}
+      {fraudError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
+          <span>Fraud check failed: {fraudError}</span>
+          <button onClick={() => setFraudError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+        </div>
+      )}
       {!loading && !error && logs.length === 0 && (
         <div className="text-center py-20 text-gray-400 text-sm">
           {hasActiveFilter
@@ -214,6 +272,7 @@ export default function AuditPage() {
               Showing {logs.length}{hasActiveFilter ? ` of ${allLogs.length}` : ''} record{logs.length !== 1 ? 's' : ''}
             </span>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -223,6 +282,7 @@ export default function AuditPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Confidence</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judge Score</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessed</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fraud Risk</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -246,6 +306,22 @@ export default function AuditPage() {
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDateTime(log.assessed_at)}
                     </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      {!log.claim_id ? (
+                        <span className="text-gray-300">—</span>
+                      ) : fraudChecks[log.claim_id] ? (
+                        <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                      ) : checkingClaimId === log.claim_id ? (
+                        <span className="text-xs text-gray-400">Checking…</span>
+                      ) : (
+                        <button
+                          onClick={() => handleFraudCheck(log.claim_id)}
+                          className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
+                        >
+                          Check for fraud signals
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-400">
                       <svg
                         className={`w-4 h-4 transition-transform ${expanded === log.id ? 'rotate-180' : ''}`}
@@ -257,7 +333,7 @@ export default function AuditPage() {
                   </tr>
                   {expanded === log.id && (
                     <tr key={`${log.id}-exp`} className="bg-gray-50">
-                      <td colSpan={7} className="px-6 py-4">
+                      <td colSpan={8} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-xs">
                           <div className="space-y-2">
                             <h4 className="font-semibold text-gray-700 text-sm">Assessment Details</h4>
@@ -292,6 +368,27 @@ export default function AuditPage() {
                               </p>
                             )}
                           </div>
+                          {log.claim_id && fraudChecks[log.claim_id] && (
+                            <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
+                              <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
+                                Fraud/Anomaly Risk Signals
+                                <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                              </h4>
+                              <p>
+                                <span className="text-gray-500">Recommended action:</span>{' '}
+                                {fraudChecks[log.claim_id].recommended_action?.replace(/_/g, ' ') || '—'}
+                              </p>
+                              {fraudChecks[log.claim_id].flags?.length > 0 ? (
+                                <ul className="list-disc list-inside space-y-1">
+                                  {fraudChecks[log.claim_id].flags.map((f, i) => (
+                                    <li key={i}><span className="font-medium">{f.signal}:</span> {f.explanation}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-gray-400">No specific flags raised.</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -300,6 +397,7 @@ export default function AuditPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

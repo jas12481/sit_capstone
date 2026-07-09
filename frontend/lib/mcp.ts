@@ -121,6 +121,51 @@ export function rejectChange(approval_id: string, actioned_by: string, reason: s
   });
 }
 
+// ── Fraud Risk Checks ────────────────────────────────────────────────────────
+
+export type FraudFlag = { signal: string; explanation: string };
+
+export type FraudRiskCheck = {
+  id: string;
+  claim_id: string;
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+  flags: FraudFlag[];
+  recommended_action: 'proceed_normally' | 'flag_for_investigation';
+  checked_by: string;
+  checked_at: string;
+};
+
+export function getFraudRiskChecks(filters?: { claim_id?: string; risk_level?: string; limit?: number }) {
+  return get<FraudRiskCheck[]>('/fraud-risk-checks', filters as Record<string, string>);
+}
+
+export function createFraudRiskCheck(check: {
+  claim_id: string;
+  risk_level: string;
+  flags?: FraudFlag[];
+  recommended_action?: string;
+  checked_by?: string;
+}) {
+  return post<FraudRiskCheck>('/fraud-risk-checks', check);
+}
+
+// Calls the Dify Fraud/Anomaly Risk Signals workflow directly (not the MCP
+// proxy — this hits /api/dify/fraud, a separate server-side Dify proxy).
+export async function runFraudRiskCheck(claim_id: string): Promise<{
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
+  flags: FraudFlag[];
+  recommended_action: 'proceed_normally' | 'flag_for_investigation';
+}> {
+  const res = await fetch('/api/dify/fraud', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ claim_id }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Fraud check failed (${res.status})`);
+  return json;
+}
+
 // ── DSL Scan ─────────────────────────────────────────────────────────────────
 
 export type ScanSummary = {
