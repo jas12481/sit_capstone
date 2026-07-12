@@ -1,0 +1,660 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Customer_History
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.4.2@21195ee1321849e0a7d4b3f6b2fd8c2be23ea6c7182e1b444ecc4c1711b52468
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1791010001-source-1791010002-target
+      source: '1791010001'
+      sourceHandle: source
+      target: '1791010002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1791010002-source-1791010003-target
+      source: '1791010002'
+      sourceHandle: source
+      target: '1791010003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1791010002-source-1791010004-target
+      source: '1791010002'
+      sourceHandle: source
+      target: '1791010004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1791010003-source-1791010005-target
+      source: '1791010003'
+      sourceHandle: source
+      target: '1791010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1791010004-source-1791010005-target
+      source: '1791010004'
+      sourceHandle: source
+      target: '1791010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1791010005-source-1791010006-target
+      source: '1791010005'
+      sourceHandle: source
+      target: '1791010006'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1791010006-source-1791010007-target
+      source: '1791010006'
+      sourceHandle: source
+      target: '1791010007'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1791010007-source-1791010008-target
+      source: '1791010007'
+      sourceHandle: source
+      target: '1791010008'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: customer_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: customer_id
+      height: 135
+      id: '1791010001'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_customer_id_from_query(query):\n    q = _clean(query)\n    if\
+          \ not q:\n        return \"\"\n    m = re.search(r\"\\b(CUST-\\d{3,6})\\\
+          b\", q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_customer_id=\"\
+          \", query=\"\"):\n    resolved = _clean(start_customer_id) or _extract_customer_id_from_query(query)\n\
+          \    return {\"resolved_customer_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_customer_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_customer_id
+        type: code
+        variables:
+        - value_selector:
+          - '1791010001'
+          - customer_id
+          value_type: string
+          variable: start_customer_id
+        - value_selector:
+          - '1791010001'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1791010002'
+      position:
+        x: 382
+        y: 282
+      positionAbsolute:
+        x: 382
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: customer_id:{{#1791010002.resolved_customer_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_policies_by_customer
+        type: http-request
+        url: https://sit-capstone.onrender.com/policies
+        variables: []
+      height: 138
+      id: '1791010003'
+      position:
+        x: 684
+        y: 180
+      positionAbsolute:
+        x: 684
+        y: 180
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: customer_id:{{#1791010002.resolved_customer_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claims_by_customer
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1791010004'
+      position:
+        x: 684
+        y: 400
+      positionAbsolute:
+        x: 684
+        y: 400
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: c1e2f3a4-5b6c-4d7e-8f90-1a2b3c4d5e6f
+          role: system
+          text: 'You are a customer-history formatter for a CUSTOMER_HISTORY workflow
+            serving internal claims operations staff.
+
+
+            Your task is to transform a customer''s raw policies list and raw claims
+            list into one concise, professional, machine-friendly JSON response
+            that cross-references claims to their policies.
+
+
+            Output rules:
+
+            1) Return ONLY valid JSON matching the required output schema.
+
+            2) Use only facts present in the input. Do not invent policies, claims,
+            amounts, or dates.
+
+            3) List every policy and every claim present in the raw data — do not
+            omit any.
+
+            4) A customer''s policies may span multiple policy types (life, health,
+            critical_illness, disability) — this is expected, not an error.
+
+            5) Keep numeric fields as numbers.
+
+            6) Keep dates in YYYY-MM-DD when available.
+
+            7) If a field is unavailable, use null.
+
+            8) This is a listing operation only — do not assess eligibility or recommend
+            a coverage decision for any claim.
+
+            9) If the raw policies or claims data is empty, return empty arrays
+            and zero counts — this is a valid, expected result, not an error.'
+        - id: d2f3a4b5-6c7d-4e8f-901a-2b3c4d5e6f70
+          role: user
+          text: "User query:\n{{#1791010001.query#}}\n\nRaw policies data for customer\
+            \ {{#1791010002.resolved_customer_id#}}:\n{{#1791010003.body#}}\n\nRaw\
+            \ claims data for the same customer:\n{{#1791010004.body#}}\n\nFormat\
+            \ the customer history response as structured JSON for internal operations.\n\
+            \nRequired output shape:\n{\n  \"title\": \"Customer History — <customer_id_or_unknown>\"\
+            ,\n  \"customer_id\": string,\n  \"total_policies\": integer,\n  \"\
+            total_claims\": integer,\n  \"policies\": [\n    {\"policy_id\": string,\
+            \ \"policy_type\": string, \"status\": string, \"sum_assured\": number,\
+            \ \"premium_amount\": number}\n  ],\n  \"claims\": [\n    {\"claim_id\"\
+            : string, \"policy_id\": string, \"claim_type\": string, \"status\"\
+            : string, \"claim_amount\": number, \"claim_date\": string}\n  ]\n}\n\
+            \nAdditional instructions:\n- Keep field names stable (do not rename\
+            \ keys).\n- If raw data is not an array, treat it as a single-item list.\n\
+            - Keep sum_assured, premium_amount, and claim_amount as numbers (not\
+            \ strings).\n- Use null only if a value is truly unavailable.\n- Do\
+            \ not invent facts.\nReturn JSON only."
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              claims:
+                items:
+                  properties:
+                    claim_amount:
+                      type: number
+                    claim_date:
+                      type: string
+                    claim_id:
+                      type: string
+                    claim_type:
+                      type: string
+                    policy_id:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+                type: array
+              customer_id:
+                type: string
+              policies:
+                items:
+                  properties:
+                    policy_id:
+                      type: string
+                    policy_type:
+                      type: string
+                    premium_amount:
+                      type: number
+                    status:
+                      type: string
+                    sum_assured:
+                      type: number
+                  type: object
+                type: array
+              title:
+                description: Response title e.g. 'Customer History — CUST-0002'
+                type: string
+              total_claims:
+                type: integer
+              total_policies:
+                type: integer
+            required:
+            - title
+            - customer_id
+            - total_policies
+            - total_claims
+            - policies
+            - claims
+            type: object
+        structured_output_enabled: true
+        title: format_customer_history_response
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1791010005'
+      position:
+        x: 986
+        y: 282
+      positionAbsolute:
+        x: 986
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: e3a4b5c6-7d8e-4f90-a1b2-3c4d5e6f7081
+          role: system
+          text: 'You are a machine-context generator for downstream follow-up orchestration
+            in a customer-history workflow.
+
+
+            Task:
+
+            Generate a compact `suggestion_context` object from the user query
+            and formatted customer-history response.
+
+
+            Rules:
+
+            1) Return ONLY valid JSON matching the schema.
+
+            2) Do NOT generate explicit follow-up questions.
+
+            3) Use only facts present in the input.
+
+            4) `path_type` must be "CUSTOMER_HISTORY".
+
+            5) `outcome_type` should be "HAS_ACTIVITY" if total_policies > 0 or
+            total_claims > 0, otherwise "NO_ACTIVITY".
+
+            6) `follow_up_themes` must be short topic labels.
+
+            7) `missing_information` should include only truly missing useful items.
+
+            8) `next_decision_points` should be concrete operational next checks/actions.
+
+
+            Keep output concise and practical.'
+        - id: f4b5c6d7-8e9f-4001-b2c3-4d5e6f708192
+          role: user
+          text: 'Build `suggestion_context` for this CUSTOMER_HISTORY response.
+
+
+            User query:
+
+            {{#1791010001.query#}}
+
+
+            Formatted customer-history response:
+
+            {{#1791010005.structured_output#}}
+
+
+            Instructions:
+
+            - Fill `entities` from the formatted response.
+
+            - Set `outcome_type` from total_policies/total_claims.
+
+            - Provide 3-6 concise `follow_up_themes`.
+
+            - Add only necessary `missing_information`.
+
+            - Provide 2-5 actionable `next_decision_points`.
+
+
+            Return JSON only.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              entities:
+                properties:
+                  customer_id:
+                    type: string
+                  total_claims:
+                    type: integer
+                  total_policies:
+                    type: integer
+                required:
+                - customer_id
+                - total_policies
+                - total_claims
+                type: object
+              follow_up_themes:
+                items:
+                  type: string
+                type: array
+              missing_information:
+                items:
+                  type: string
+                type: array
+              next_decision_points:
+                items:
+                  type: string
+                type: array
+              outcome_type:
+                enum:
+                - HAS_ACTIVITY
+                - NO_ACTIVITY
+                type: string
+              path_type:
+                enum:
+                - CUSTOMER_HISTORY
+                type: string
+            required:
+            - path_type
+            - outcome_type
+            - entities
+            - follow_up_themes
+            - missing_information
+            - next_decision_points
+            type: object
+        structured_output_enabled: true
+        title: build_customer_history_suggestion_context
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1791010006'
+      position:
+        x: 1288
+        y: 282
+      positionAbsolute:
+        x: 1288
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n     \
+          \   return v\n    if isinstance(v, str):\n        try:\n            return\
+          \ json.loads(v)\n        except Exception:\n            return v\n    return\
+          \ v\n\ndef main(answer, suggestion_context):\n    merged = {\n        \"\
+          answer\": _to_obj(answer),\n        \"suggestion_context\": _to_obj(suggestion_context)\n\
+          \    }\n    return {\n        \"merged_json\": json.dumps(merged, ensure_ascii=False)\n\
+          \    }"
+        code_language: python3
+        outputs:
+          merged_json:
+            children: null
+            type: string
+        selected: false
+        title: merge_answer_and_context
+        type: code
+        variables:
+        - value_selector:
+          - '1791010005'
+          - structured_output
+          value_type: object
+          variable: answer
+        - value_selector:
+          - '1791010006'
+          - structured_output
+          value_type: object
+          variable: suggestion_context
+      height: 52
+      id: '1791010007'
+      position:
+        x: 1590
+        y: 282
+      positionAbsolute:
+        x: 1590
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1791010007'
+          - merged_json
+          value_type: string
+          variable: answer
+        selected: false
+        title: customer_history_answer
+        type: end
+      height: 88
+      id: '1791010008'
+      position:
+        x: 1892
+        y: 282
+      positionAbsolute:
+        x: 1892
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.7
+  rag_pipeline_variables: []

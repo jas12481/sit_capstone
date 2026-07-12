@@ -1,0 +1,579 @@
+app:
+  description: ''
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Claims_History
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai:0.4.2@21195ee1321849e0a7d4b3f6b2fd8c2be23ea6c7182e1b444ecc4c1711b52468
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 50
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: 1790010001-source-1790010002-target
+      source: '1790010001'
+      sourceHandle: source
+      target: '1790010002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: 1790010002-source-1790010003-target
+      source: '1790010002'
+      sourceHandle: source
+      target: '1790010003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: llm
+      id: 1790010003-source-1790010004-target
+      source: '1790010003'
+      sourceHandle: source
+      target: '1790010004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: 1790010004-source-1790010005-target
+      source: '1790010004'
+      sourceHandle: source
+      target: '1790010005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1790010005-source-1790010006-target
+      source: '1790010005'
+      sourceHandle: source
+      target: '1790010006'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1790010006-source-1790010007-target
+      source: '1790010006'
+      sourceHandle: source
+      target: '1790010007'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: User Input
+        type: start
+        variables:
+        - default: ''
+          hint: ''
+          label: query
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: query
+        - default: ''
+          hint: ''
+          label: policy_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: policy_id
+        - default: ''
+          hint: ''
+          label: claim_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: claim_id
+      height: 135
+      id: '1790010001'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import re\n\ndef _clean(v):\n    return (v or \"\").strip()\n\ndef\
+          \ _extract_policy_id_from_query(query):\n    q = _clean(query)\n    if not\
+          \ q:\n        return \"\"\n    # Matches POL-HE-0001, POL-LI-0123, etc.\n\
+          \    m = re.search(r\"\\b(POL-[A-Z]{2,4}-\\d{3,6})\\b\", q.upper())\n  \
+          \  return m.group(1) if m else \"\"\n\ndef main(start_policy_id=\"\", query=\"\
+          \"):\n    resolved = _clean(start_policy_id) or _extract_policy_id_from_query(query)\n\
+          \    return {\"resolved_policy_id\": resolved}"
+        code_language: python3
+        outputs:
+          resolved_policy_id:
+            children: null
+            type: string
+        selected: false
+        title: extract_policy_id
+        type: code
+        variables:
+        - value_selector:
+          - '1790010001'
+          - policy_id
+          value_type: string
+          variable: start_policy_id
+        - value_selector:
+          - '1790010001'
+          - query
+          value_type: string
+          variable: query
+      height: 52
+      id: '1790010002'
+      position:
+        x: 382
+        y: 282
+      positionAbsolute:
+        x: 382
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data: []
+          type: none
+        desc: ''
+        headers: Content-Type:application/json
+        isInIteration: false
+        isInLoop: false
+        method: get
+        params: policy_id:{{#1790010002.resolved_policy_id#}}
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: false
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: fetch_claims_by_policy
+        type: http-request
+        url: https://sit-capstone.onrender.com/claims
+        variables: []
+      height: 138
+      id: '1790010003'
+      position:
+        x: 684
+        y: 282
+      positionAbsolute:
+        x: 684
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: 8a1e2b3c-4d5e-4f60-9a1b-2c3d4e5f6071
+          role: system
+          text: 'You are a claims-history formatter for a CLAIMS_HISTORY workflow
+            serving internal claims operations staff.
+
+
+            Your task is to transform a raw list of claims under one policy into
+            a concise, professional, machine-friendly JSON response.
+
+
+            Output rules:
+
+            1) Return ONLY valid JSON matching the required output schema.
+
+            2) Use only facts present in the input. Do not invent claims, amounts,
+            or dates.
+
+            3) List every claim present in the raw data — do not omit or summarize
+            away any claim.
+
+            4) Keep numeric fields as numbers.
+
+            5) Keep dates in YYYY-MM-DD when available.
+
+            6) If a field is unavailable, use null.
+
+            7) This is a listing operation only — do not assess eligibility or recommend
+            a coverage decision for any claim.
+
+            8) If the raw claims data is empty, return an empty claims array and
+            total_claims=0 — this is a valid, expected result, not an error.'
+        - id: 9b2f3c4d-5e6f-4071-8a2b-3c4d5e6f7182
+          role: user
+          text: "User query:\n{{#1790010001.query#}}\n\nRaw claims data (list) for\
+            \ policy {{#1790010002.resolved_policy_id#}}:\n{{#1790010003.body#}}\n\
+            \nFormat the claims history response as structured JSON for internal\
+            \ operations.\n\nRequired output shape:\n{\n  \"title\": \"Claims History\
+            \ — <policy_id_or_unknown>\",\n  \"policy_id\": string,\n  \"total_claims\"\
+            : integer,\n  \"claims\": [\n    {\"claim_id\": string, \"claim_type\"\
+            : string, \"claim_category\": string, \"status\": string, \"claim_amount\"\
+            : number, \"approved_amount\": number|null, \"claim_date\": string}\n\
+            \  ]\n}\n\nAdditional instructions:\n- Keep field names stable (do not\
+            \ rename keys).\n- If raw claims data is not an array, treat it as a\
+            \ single-item list.\n- Keep claim_amount and approved_amount as numbers\
+            \ (not strings).\n- Use null only if a value is truly unavailable.\n\
+            - Do not invent facts.\nReturn JSON only."
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              claims:
+                items:
+                  properties:
+                    approved_amount:
+                      type: number
+                    claim_amount:
+                      type: number
+                    claim_category:
+                      type: string
+                    claim_date:
+                      type: string
+                    claim_id:
+                      type: string
+                    claim_type:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+                type: array
+              policy_id:
+                type: string
+              title:
+                description: Response title e.g. 'Claims History — POL-HE-0001'
+                type: string
+              total_claims:
+                type: integer
+            required:
+            - title
+            - policy_id
+            - total_claims
+            - claims
+            type: object
+        structured_output_enabled: true
+        title: format_claims_history_response
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1790010004'
+      position:
+        x: 986
+        y: 282
+      positionAbsolute:
+        x: 986
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-5.2
+          provider: langgenius/openai/openai
+        prompt_template:
+        - id: ac3f4d5e-6f70-4182-9b3c-4d5e6f708293
+          role: system
+          text: 'You are a machine-context generator for downstream follow-up orchestration
+            in a claims-history workflow.
+
+
+            Task:
+
+            Generate a compact `suggestion_context` object from the user query and
+            formatted claims-history response.
+
+
+            Rules:
+
+            1) Return ONLY valid JSON matching the schema.
+
+            2) Do NOT generate explicit follow-up questions.
+
+            3) Use only facts present in the input.
+
+            4) `path_type` must be "CLAIMS_HISTORY".
+
+            5) `outcome_type` should be "HAS_CLAIMS" if total_claims > 0, otherwise
+            "NO_CLAIMS".
+
+            6) `follow_up_themes` must be short topic labels.
+
+            7) `missing_information` should include only truly missing useful items.
+
+            8) `next_decision_points` should be concrete operational next checks/actions.
+
+
+            Keep output concise and practical.'
+        - id: bd4f5e6f-7081-4293-ac4d-5e6f70829304
+          role: user
+          text: 'Build `suggestion_context` for this CLAIMS_HISTORY response.
+
+
+            User query:
+
+            {{#1790010001.query#}}
+
+
+            Formatted claims-history response:
+
+            {{#1790010004.structured_output#}}
+
+
+            Instructions:
+
+            - Fill `entities` from the formatted response.
+
+            - Set `outcome_type` from total_claims.
+
+            - Provide 3-6 concise `follow_up_themes`.
+
+            - Add only necessary `missing_information`.
+
+            - Provide 2-5 actionable `next_decision_points`.
+
+
+            Return JSON only.'
+        selected: false
+        structured_output:
+          schema:
+            properties:
+              entities:
+                properties:
+                  policy_id:
+                    type: string
+                  total_claims:
+                    type: integer
+                required:
+                - policy_id
+                - total_claims
+                type: object
+              follow_up_themes:
+                items:
+                  type: string
+                type: array
+              missing_information:
+                items:
+                  type: string
+                type: array
+              next_decision_points:
+                items:
+                  type: string
+                type: array
+              outcome_type:
+                enum:
+                - HAS_CLAIMS
+                - NO_CLAIMS
+                type: string
+              path_type:
+                enum:
+                - CLAIMS_HISTORY
+                type: string
+            required:
+            - path_type
+            - outcome_type
+            - entities
+            - follow_up_themes
+            - missing_information
+            - next_decision_points
+            type: object
+        structured_output_enabled: true
+        title: build_claims_history_suggestion_context
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1790010005'
+      position:
+        x: 1288
+        y: 282
+      positionAbsolute:
+        x: 1288
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef _to_obj(v):\n    if isinstance(v, dict):\n     \
+          \   return v\n    if isinstance(v, str):\n        try:\n            return\
+          \ json.loads(v)\n        except Exception:\n            return v\n    return\
+          \ v\n\ndef main(answer, suggestion_context):\n    merged = {\n        \"\
+          answer\": _to_obj(answer),\n        \"suggestion_context\": _to_obj(suggestion_context)\n\
+          \    }\n    return {\n        \"merged_json\": json.dumps(merged, ensure_ascii=False)\n\
+          \    }"
+        code_language: python3
+        outputs:
+          merged_json:
+            children: null
+            type: string
+        selected: false
+        title: merge_answer_and_context
+        type: code
+        variables:
+        - value_selector:
+          - '1790010004'
+          - structured_output
+          value_type: object
+          variable: answer
+        - value_selector:
+          - '1790010005'
+          - structured_output
+          value_type: object
+          variable: suggestion_context
+      height: 52
+      id: '1790010006'
+      position:
+        x: 1590
+        y: 282
+      positionAbsolute:
+        x: 1590
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1790010006'
+          - merged_json
+          value_type: string
+          variable: answer
+        selected: false
+        title: claims_history_answer
+        type: end
+      height: 88
+      id: '1790010007'
+      position:
+        x: 1892
+        y: 282
+      positionAbsolute:
+        x: 1892
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.7
+  rag_pipeline_variables: []

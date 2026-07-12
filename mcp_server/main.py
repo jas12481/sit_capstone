@@ -59,7 +59,9 @@ def get_claims(
     query = query.limit(limit)
     response = query.execute()
     if not response.data:
-        raise HTTPException(status_code=404, detail="No claims found")
+        if claim_id:
+            raise HTTPException(status_code=404, detail="No claims found")
+        return []
     return response.data
 
 # ── POLICIES ──────────────────────────────────────────────────────────────────
@@ -84,7 +86,9 @@ def get_policies(
     query = query.limit(limit)
     response = query.execute()
     if not response.data:
-        raise HTTPException(status_code=404, detail="No policies found")
+        if policy_id:
+            raise HTTPException(status_code=404, detail="No policies found")
+        return []
     return response.data
 
 # ── CLAIM DOMAIN LOOKUP ───────────────────────────────────────────────────────
