@@ -44,7 +44,7 @@ export default function ChatPage() {
       const body: Record<string, unknown> = {
         inputs: {},
         query,
-        response_mode: 'blocking',
+        response_mode: 'streaming',
         user: 'claims-officer',
       };
       if (conversationId) body.conversation_id = conversationId;
@@ -60,14 +60,43 @@ export default function ChatPage() {
         throw new Error(`Dify API error ${res.status}: ${text}`);
       }
 
-      const data = await res.json();
-      if (data.conversation_id) setConversationId(data.conversation_id);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let answer = '';
+      let convId = '';
+      let usage: { total_tokens?: number } | undefined;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+        for (const chunk of chunks) {
+          const line = chunk.trim();
+          if (!line.startsWith('data:')) continue;
+          const jsonStr = line.slice(5).trim();
+          if (!jsonStr) continue;
+          const evt = JSON.parse(jsonStr);
+          if (evt.conversation_id) convId = evt.conversation_id;
+          if (evt.event === 'message' || evt.event === 'agent_message') {
+            answer += evt.answer || '';
+          } else if (evt.event === 'message_end') {
+            usage = evt.metadata?.usage;
+          } else if (evt.event === 'error') {
+            throw new Error(evt.message || 'Dify streaming error');
+          }
+        }
+      }
+
+      if (convId) setConversationId(convId);
 
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: data.answer || '(no response)',
-        routing: data.metadata?.usage ? `Tokens: ${data.metadata.usage.total_tokens}` : undefined,
+        content: answer || '(no response)',
+        routing: usage?.total_tokens ? `Tokens: ${usage.total_tokens}` : undefined,
         timestamp: fmtTime(),
       };
       setMessages(prev => [...prev, assistantMsg]);

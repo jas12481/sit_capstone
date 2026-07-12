@@ -27,9 +27,20 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(body),
   });
 
-  const text = await res.text();
-  return new NextResponse(text, {
+  if (!res.ok) {
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Streamed straight through (SSE) — blocking mode holds the connection open
+  // with no data on longer node chains (intent classifier -> sub-workflow),
+  // which an intermediate proxy kills as idle. Streaming's progressive events
+  // keep it alive. Same fix as evaluation/run_evaluation.py's Dify caller.
+  return new NextResponse(res.body, {
     status: res.status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/event-stream' },
   });
 }
