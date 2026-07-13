@@ -1,7 +1,7 @@
 # AIA Capstone Project — Full Context Document
 > **For:** Claude Code and any AI assistant picking up this project  
 > **Author:** Jasbir Kaur (2302990), Applied Computing (FinTech), Singapore Institute of Technology  
-> **Last updated:** 6 July 2026 (active build log)
+> **Last updated:** 13 July 2026 (active build log)
 
 ---
 
@@ -370,16 +370,18 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 ```
 User (Claims Officer) — Web UI (React, Vercel)
     ↓ natural language query
-Orchestrator Chatbot (Dify advanced-chat workflow — Test_Orchestrator_1-5.yml)
+Orchestrator Chatbot (Dify advanced-chat workflow — Test_Orchestrator_1-1.yml)
     ↓ followup_router → query_type_router → intent_identifier → domain routing
     ├── life_agent   → [Life_Claim_Details, Life_Policy_Details,
-    │                    Life_Claim_and_Policy_Details, Life_Assess_Claim]
+    │                    Life_Claim_and_Policy_Details, Life_Assess_Claim, Claims_History]
     ├── health_agent → [Health_Claim_Details, Health_Policy_Details,
-    │                    Health_Claim_and_Policy_Details, Health_Assess_Claim]
+    │                    Health_Claim_and_Policy_Details, Health_Assess_Claim, Claims_History]
     ├── ci_agent     → [CI_Claim_Details, CI_Policy_Details,
-    │                    CI_Claim_and_Policy_Details, CI_Assess_Claim]
-    └── disability_agent → [Disability_Claim_Details, Disability_Policy_Details,
-                             Disability_Claim_and_Policy_Details, Disability_Assess_Claim]
+    │                    CI_Claim_and_Policy_Details, CI_Assess_Claim, Claims_History]
+    ├── disability_agent → [Disability_Claim_Details, Disability_Policy_Details,
+    │                        Disability_Claim_and_Policy_Details, Disability_Assess_Claim, Claims_History]
+    └── customer_history_agent → [Customer_History]   (bypasses domain resolution entirely —
+                                   a customer can hold policies across multiple domains)
             ↓ all sub-workflows call
     MCP Server (FastAPI — Render cloud)
             ↓
@@ -418,6 +420,23 @@ The original monolithic 32-node workflow was refactored into four focused sub-wo
 {"answer": "...", "suggestion_context": "..."}
 ```
 The orchestrator uses `answer` for display and `suggestion_context` to build follow-up suggestions.
+
+### Two Additional Shared Sub-Workflows (added 2026-07-13)
+
+Beyond the 16 domain-specific workflows above, two new orchestrator intents were added — `claims_history`
+(list all claims under one policy) and `customer_history` (all policies/claims for a customer, which may
+span multiple policy types). Each is backed by **one shared Dify app**, not four domain-specific
+duplicates — a deliberate correction after an initial per-domain-duplicate design was rejected as
+unnecessary, since neither capability's logic actually differs by policy type:
+
+| Workflow | Purpose | Registration |
+|---|---|---|
+| `Claims_History` | Fetch all claims for a given `policy_id`, format as a table + narrative | Registered as a shared tool on **all four** domain agents (`life_agent`/`health_agent`/`ci_agent`/`disability_agent`) |
+| `Customer_History` | Fetch all policies **and** claims for a given `customer_id` (two parallel HTTP calls), cross-reference, explicitly tolerant of the customer holding policies in more than one domain | Called by a dedicated `customer_history_agent`, which bypasses per-domain resolution entirely |
+
+Both follow the same shape as the other sub-workflows: Start → extract ID(s) (Code) → HTTP fetch(es) →
+format response (LLM, structured output) → build suggestion context (LLM) → merge `{answer,
+suggestion_context}` (Code) → End.
 
 ### Assessment Flow (Life_Assess_Claim)
 
@@ -471,25 +490,40 @@ End
 - All four workflows published in Dify and available as tools for the orchestrator
 - DSL YAML exports in `dify-data/`
 
-### Orchestrator Architecture (Test_Orchestrator_1-7.yml — final working version ✅)
+### Orchestrator Architecture (Test_Orchestrator_1-1.yml — canonical, final working version ✅)
 
-Built entirely in Dify's advanced-chat UI (not YAML-edited) after discovering AI-generated YAML caused hangs due to missing `memory` blocks and non-UUID prompt template IDs.
+Originally built entirely in Dify's advanced-chat UI. The `claims_history`/`customer_history` addition
+(2026-07-13) was different: Claude Code hand-edited the exported YAML directly (node-by-node, fully
+validated via `yaml.safe_load` + `ast.parse` on every embedded code block after each stage), then Jasbir
+re-imported into Dify and reselected the UUID-dependent tool references via the UI dropdown (Dify assigns
+these at publish time, so they can't be predicted/pre-filled in generated YAML). An older file,
+`Test_Orchestrator-1.yml`, existed briefly as an intermediate export during this process and has since
+been **deleted** — `Test_Orchestrator_1-1.yml` is the sole, confirmed-canonical orchestrator file.
 
-**69 nodes, 15 conversation variables. All nodes use GPT-5.2. Passes all test cases.**
+**75 nodes, 17 conversation variables (added `customer_id`, `awaiting_customer_id`). All nodes use
+GPT-5.2. Passes all test cases as of 2026-07-13, confirmed live through the actual Vercel chat UI (not
+just Dify's own Run panel).**
 
 **Key routing flow:**
 ```
 User Input
+  → detect_fresh_id_in_query (Code) — regexes query for CLM-/POL-/CUST- patterns → has_fresh_id
   → followup_router (LLM, structured_output, memory ON) — is_followup / reuse_last_intents / needs_ids
   → if/else_followup
+      [fresh_id_override: has_fresh_id is true] → (same target as [new query] below — a fresh ID in the
+          current message always forces re-extraction/re-classification, overriding the LLM's own
+          is_followup judgment; see "Deterministic routing-bug fixes" below for why this exists)
       [followup] → va_prepare_followup_context_reuse → IF/ELSE 3
           [claims] → if_followup_has_no_ids → if_followup_reuse_last_intents
           [faq]   → faq_followup_explainer → answer
       [new query] → query_type_router (LLM, structured_output) — claims_operations / general_faq / unknown
-          [claims_operations] → extract_claim_policy_ids (Code) → ID waiting logic
+          [claims_operations] → extract_claim_policy_ids (Code) — also extracts customer_id, no domain
+                                                                     prefix since a customer can span
+                                                                     multiple policy types
+                              → ID waiting logic (claim / policy / customer)
                               → intent_identifier (LLM, structured_output) — claim_details / policy_details /
-                                                                               claim_and_policy_details / assess_claim
-                              → compute_requires_ids → ID availability gates
+                                  claim_and_policy_details / assess_claim / claims_history / customer_history
+                              → compute_requires_ids → ID availability gates (incl. customer-only bucket)
                               → prepare_intents_for_iteration → va_clear_awaiting_flags
                               → if_needs_domain_lookup
                                   [true: CLM present, domain empty] → domain_lookup (HTTP GET /claims/domain)
@@ -497,7 +531,8 @@ User Input
                                                                      → va_set_domain_from_lookup
                                   [false] → (pass through)
                               → Iteration
-                                  → map_intent → IF/ELSE 13 (domain routing on intended_domain)
+                                  → map_intent → IF/ELSE 13 (5 cases, evaluated top-to-bottom, first match wins)
+                                      [customer_history: intent_name is "customer_history"] → customer_history_agent → format_response
                                       [life]        → life_agent        → format_response
                                       [health]      → health_agent      → format_response
                                       [CI]          → ci_agent          → format_response
@@ -510,18 +545,58 @@ User Input
           [unknown]           → unknown_answer
 ```
 
-**Conversation variables (15):** `claim_id`, `policy_id`, `intended_domain`, `awaiting_claim_id`, `awaiting_policy_id`, `pending_intent_list`, `pending_primary_intent`, `last_intent_list`, `last_primary_intent`, `last_combined_sections`, `last_answer_type`, `last_faq_answer`, `effective_query`, `pending_query`, `pending_intents_json`
+**Conversation variables (17):** `claim_id`, `policy_id`, `customer_id`, `intended_domain`,
+`awaiting_claim_id`, `awaiting_policy_id`, `awaiting_customer_id`, `pending_intent_list`,
+`pending_primary_intent`, `last_intent_list`, `last_primary_intent`, `last_combined_sections`,
+`last_answer_type`, `last_faq_answer`, `effective_query`, `pending_query`, `pending_intents_json`
 
 **`last_answer_type` values:** `claims` (for claims path) and `faq` (for FAQ path). `IF/ELSE 3` uses `contains` matching so these are compatible with longer values like `claims_operations`.
 
 **CLM-only domain routing (resolved):** When only a Claim ID is given with no Policy ID, `intended_domain` would be empty and `IF/ELSE 13` would fall through to `unknown_answer_iter`. Fixed via 4-node domain lookup step (`if_needs_domain_lookup` → `domain_lookup` → `parse_domain_response` → `va_set_domain_from_lookup`) calling `GET /claims/domain` on the MCP server, inserted between `va_clear_awaiting_flags` and `Iteration`.
 
 **Prompt calibration notes:**
-- `followup_router`: memory enabled (window 3-5); expanded `is_followup=true` patterns to cover "explain/elaborate/clarify/further"; `needs_ids=false` when followup; boolean output type enforced explicitly in output contract
+- `followup_router`: memory enabled (window 3-5); expanded `is_followup=true` patterns to cover "explain/elaborate/clarify/further"; `needs_ids=false` when followup; boolean output type enforced explicitly in output contract; later extended with Customer-ID-aware override rules (a stored Policy ID/Domain from a prior turn must not be treated as reason to call a fresh Customer-ID message a followup)
 - `query_type_router`: HOW/WHAT/WHY questions → `general_faq`; hard gate against returning `unknown` for insurance queries; never-unknown rule added
-- `intent_identifier`: removed "Requires a Claim ID" from all 4 intent definitions; classify by intent not by ID availability; no-ID examples added; examples disclaimer added
+- `intent_identifier`: removed "Requires a Claim ID" from all original 4 intent definitions; classify by intent not by ID availability; no-ID examples added; examples disclaimer added; **CRITICAL DISAMBIGUATION section added 2026-07-13** — classify using only the current message's own content, never let a stale Policy ID/Domain/Customer ID from prior conversation turns pull the classification toward the wrong intent; explicit rule that a Customer ID mention always wins toward `customer_history` over stale policy/domain context; explicit scoping rules distinguishing `claims_history` (one named policy) from `customer_history` (a customer's overall relationship, possibly multi-domain)
 
 **Remaining minor issue:** When `unknown_answer_iter` path runs (no domain match), `compose_final_answer` may prepend `unknown_answer##` to output — cosmetic formatting issue, does not affect routing or data correctness.
+
+### Deterministic Routing-Bug Fixes (2026-07-13) — `claims_history`/`customer_history` rollout
+
+Adding the two new intents surfaced a recurring class of bug: **the LLM's own classification/judgment
+was unreliable for what is actually a deterministic routing decision**, at GPT-5.2's default temperature.
+Consistent with this project's existing hallucination-control philosophy (structured outputs, enum
+constraints), each instance was fixed by moving the decision into deterministic code rather than
+rewording the prompt further:
+
+1. **`is_followup` unreliability** — a message containing a fresh Customer ID was sometimes still
+   classified `is_followup=true`, reusing stale conversation context instead of re-extracting/
+   re-classifying. Fixed with `detect_fresh_id_in_query` (a Code node, pure regex, no LLM) feeding a new
+   first-priority case on `if/else_followup` that deterministically overrides the LLM's own judgment
+   whenever the current message contains a CLM-/POL-/CUST- pattern.
+2. **`IF/ELSE 13` case-ordering bug** — Dify if-else nodes evaluate cases top-to-bottom, first match
+   wins. The new `customer_history` case was initially added *last*, after the four domain cases (which
+   match on `conversation.intended_domain`, a value that persists across turns). A stale
+   `intended_domain` from an earlier turn (e.g. "health") therefore matched before the correctly-
+   classified `customer_history` intent was ever checked, misrouting to a domain agent instead of
+   `customer_history_agent`. Fixed by moving the `customer_history` case to first position (case IDs,
+   not list order, are what edges reference — safe to reorder without touching any edge).
+3. **Backend false-404 on legitimate empty results** — `GET /claims`/`GET /policies` in
+   `mcp_server/main.py` originally 404'd on *any* empty result set, including valid list-style filters
+   (e.g. `customer_id` for a real customer with zero claims). This made `customer_history` falsely report
+   "not found" for a customer who simply has no claims yet. Fixed (see §10) to only 404 when a specific
+   `claim_id`/`policy_id` is queried directly and returns nothing — a genuine "doesn't exist" case — and
+   return `[]`/200 for every other empty-result filter combination, matching the convention already used
+   by `/claim-documents`.
+
+**Operational lesson worth keeping (not a code fix, a debugging-process one):** after these fixes were
+confirmed correct on the Dify canvas, a `customer_history` query still failed via the live Vercel chat
+while working fine inside Dify's own builder UI. This was **not** a regression — Dify's external chat
+API always serves the app's last **published** version, while Dify's own Run/Preview panel runs the
+current **draft** canvas regardless of publish state. The actual cause was simply that the orchestrator
+hadn't been re-published after the edits. **Whenever "works in Dify's UI but not through the live
+product" is reported again, check Publish status first**, before suspecting env vars, API keys, or
+routing logic.
 
 ---
 
@@ -536,7 +611,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 
 **Cloud:** https://sit-capstone.onrender.com
 
-### All 14 Endpoints
+### All 19 Endpoints (corrected 2026-07-13 — table had drifted from the actual file)
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -546,6 +621,9 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/policies` | GET | Filtered policies (includes policy_text) |
 | `/eligibility-rules` | GET | Rules filtered by policy_type |
 | `/assessment` | GET | Claim + linked policy + rules combined |
+| `/claim-documents` | GET | Documents for a claim — returns `[]` (not 404) if none exist |
+| `/fraud-risk-checks` | GET | Query logged fraud/anomaly risk-signal results |
+| `/fraud-risk-checks` | POST | Write a fraud/anomaly risk-signal result |
 | `/assessment-logs` | POST | Write assessment result to audit log |
 | `/assessment-logs` | GET | Query audit log (management dashboard) |
 | `/workflow-nodes` | GET | Stored DSL nodes for a workflow |
@@ -554,6 +632,17 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/change-approvals` | POST | Create change approval request |
 | `/change-approvals/{id}/approve` | POST | Approve + trigger git commit |
 | `/change-approvals/{id}/reject` | POST | Reject change |
+| `/dsl/status` | GET | DSL scan status (server-side scan of `dify-data/`) |
+| `/dsl/scan` | POST | Server-side DSL scan trigger (frontend DSL Management view) |
+
+**404-on-empty convention fixed (2026-07-13):** `/claims` and `/policies` originally raised a 404 on
+*any* empty result, including valid list-style filters (e.g. `customer_id`, `policy_id`-only,
+`claim_type`) where zero results is a legitimate answer, not an error — this caused `customer_history` to
+falsely report "not found" for a real customer with zero claims. Both endpoints now only 404 when a
+specific `claim_id`/`policy_id` is queried directly and returns nothing (a genuine "doesn't exist" case);
+every other empty-result filter combination returns `[]`/200, matching the convention `/claim-documents`
+already used. Committed in `f81a4ea`, pushed to `origin/main`, and confirmed live against
+`https://sit-capstone.onrender.com`.
 
 ### Environment Variables (mcp_server/.env)
 ```
@@ -1047,7 +1136,8 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | Disability_Policy_Details workflow | ✅ Done | |
 | Disability_Claim_and_Policy_Details workflow | ✅ Done | |
 | Disability_Assess_Claim workflow | ✅ Done | |
-| Orchestrator Chatbot | ✅ Done | Test_Orchestrator_1-7.yml (69 nodes); all test cases pass; CLM-only domain routing resolved via /claims/domain; followup/intent/router prompts calibrated |
+| Orchestrator Chatbot | ✅ Done | Test_Orchestrator_1-1.yml (75 nodes, 17 conversation variables — canonical, sole file); all test cases pass; CLM-only domain routing resolved via /claims/domain; followup/intent/router prompts calibrated |
+| `claims_history` / `customer_history` intents | ✅ Done | 2 new shared sub-workflows (`Claims_History.yml`, `Customer_History.yml`); orchestrator extended to 6 intents; 3 deterministic routing-bug fixes (fresh-ID override, `IF/ELSE 13` case-order, backend 404-on-empty fix); confirmed working live via the actual Vercel chat (not just Dify's Run panel) |
 | 3 new product-capability Dify apps | ✅ Done | `Explain_Assessment_Reasoning` (dual-mode: explains a logged verdict, or does a fresh walkthrough if none exists), `Fraud_Anomaly_Risk_Signals`, `Missing_Documentation_Advisor` — each independently valuable, none produce an APPROVE/REJECT/REFER recommendation. Built manually in Dify UI from generated DSL, imported, tested against real claim data; prompts recalibrated once each (Fraud app was over-flagging any 2+-claim customer; Missing Docs app was hallucinating non-existent rule IDs for generic real-world doc requirements) |
 | 3 new research-only Dify apps | ✅ Done | `Direct_Research`, `CoT_Research`, `Structured_Research` — minimal single-LLM-node apps isolating the 2×2 (reasoning × structure) design for the prompting-strategy study; Combined reuses the existing 4 production `*_Assess_Claim` workflows unchanged |
 | MLflow Prompt Registry | ✅ Done | `evaluation/register_prompts.py` — 79 LLM prompts registered as `workspace.default.{workflow}_{node}_v1_0` (UC-qualified naming, see §12) |
@@ -1073,6 +1163,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 |---|---|
 | **Late June** | DSL Change Management System — `dsl_manager/` modules (`parser.py`, `diff.py`, `approvals.py`, `git_commit.py`); Okta SSO for `/dsl` |
 | **Done (2026-07-06/07)** | Frontend — all 4 views; MLflow Prompt Registry (79 prompts) + local viewer; 6 new Dify apps (3 product capabilities + 3 research-only); full dataset consistency backfill; 4-strategy research harness (18/20 final); 3-app product-capability harness (14/15 final); `evaluation/prompt_advisor.py` run for real (8 pending approvals) |
+| **Done (2026-07-13)** | `claims_history`/`customer_history` orchestrator intents (2 new shared sub-workflows, 6-intent orchestrator, 3 real routing-bug fixes); `/claims`/`/policies` 404-on-empty backend fix, deployed and confirmed live; stale `Test_Orchestrator-1.yml` deleted, single canonical orchestrator file — full build scope now considered complete |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
@@ -1097,4 +1188,4 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 ---
 
-*Last updated: 6 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*
+*Last updated: 13 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*
