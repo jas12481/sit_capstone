@@ -8,3 +8,4 @@ venv/
 .next/
 .mlflow_tmp_artifacts/
 mlflow_local_registry/
+*.tsbuildinfo
