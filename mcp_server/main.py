@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone
 from pathlib import Path
+import concurrent.futures
 import os
 import sys
 
@@ -441,6 +442,18 @@ def _download_workflow_file(name: str) -> bytes:
     return supabase.storage.from_(WORKFLOW_BUCKET).download(name)
 
 
+def _download_and_parse_workflow(name: str) -> tuple[str, Optional[list], Optional[str]]:
+    """Download + parse a single workflow file. Returns (name, nodes, error)."""
+    try:
+        raw_bytes = _download_workflow_file(name)
+        nodes = parse_workflow_content(
+            raw_bytes.decode("utf-8"), workflow_name_fallback=Path(name).stem
+        )
+        return name, nodes, None
+    except Exception as exc:  # noqa: BLE001
+        return name, None, str(exc)
+
+
 @app.post("/dsl/upload")
 async def dsl_upload_workflow(
     file: UploadFile = File(...),
@@ -553,15 +566,19 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
         "errors": [],
     }
 
-    for yaml_name in yaml_files:
+    # Download + parse all files concurrently — this loop is network-bound
+    # (one Storage API round-trip per file), not memory-bound, so a bounded
+    # worker pool cuts total scan time from ~N sequential round-trips down to
+    # ~N/10 batches without risking rate limits or connection exhaustion as
+    # the workflow count grows. executor.map preserves input order, so
+    # scanned_files stays in the same order as before.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        parse_results = list(executor.map(_download_and_parse_workflow, yaml_files))
+
+    for yaml_name, nodes, error in parse_results:
         summary["scanned_files"].append(yaml_name)
-        try:
-            raw_bytes = _download_workflow_file(yaml_name)
-            nodes = parse_workflow_content(
-                raw_bytes.decode("utf-8"), workflow_name_fallback=Path(yaml_name).stem
-            )
-        except Exception as exc:
-            summary["errors"].append({"file": yaml_name, "error": str(exc)})
+        if error is not None:
+            summary["errors"].append({"file": yaml_name, "error": error})
             continue
 
         for node in nodes:
