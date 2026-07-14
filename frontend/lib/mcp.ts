@@ -166,6 +166,47 @@ export async function runFraudRiskCheck(claim_id: string): Promise<{
   return json;
 }
 
+// ── Assessment Explanations ─────────────────────────────────────────────────
+// Keyed by log_id, not claim_id (unlike Fraud) — a claim can have multiple
+// assessment_logs rows, and an explanation is tied to one specific verdict.
+
+export type AssessmentExplanation = {
+  id: string;
+  log_id: string;
+  claim_id: string;
+  explanation_text: string;
+  generated_by: string;
+  generated_at: string;
+};
+
+export function getAssessmentExplanations(filters?: { log_id?: string; claim_id?: string; limit?: number }) {
+  return get<AssessmentExplanation[]>('/explanations', filters as Record<string, string>);
+}
+
+export function createAssessmentExplanation(explanation: {
+  log_id: string;
+  claim_id: string;
+  explanation_text: string;
+  generated_by?: string;
+}) {
+  return post<AssessmentExplanation>('/explanations', explanation);
+}
+
+// Calls the Dify Explain_Assessment_Reasoning workflow directly (not the MCP
+// proxy — this hits /api/dify/explain, a separate server-side Dify proxy).
+export async function runAssessmentExplanation(claim_id: string, log_id: string): Promise<{
+  explanation_text: string;
+}> {
+  const res = await fetch('/api/dify/explain', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ claim_id, log_id }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Explanation failed (${res.status})`);
+  return json;
+}
+
 // ── DSL Scan ─────────────────────────────────────────────────────────────────
 
 export type ScanSummary = {

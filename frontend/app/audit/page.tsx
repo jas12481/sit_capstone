@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { getAssessmentLogs, getFraudRiskChecks, runFraudRiskCheck, createFraudRiskCheck, type AssessmentLog, type FraudRiskCheck } from '@/lib/mcp';
+import {
+  getAssessmentLogs,
+  getFraudRiskChecks, runFraudRiskCheck, createFraudRiskCheck,
+  getAssessmentExplanations, runAssessmentExplanation, createAssessmentExplanation,
+  type AssessmentLog, type FraudRiskCheck, type AssessmentExplanation,
+} from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
 const RECOMMENDATIONS = ['APPROVE', 'REJECT', 'REFER_FOR_FURTHER_REVIEW', 'PENDING'];
@@ -111,6 +116,49 @@ export default function AuditPage() {
     }
   }
 
+  // Explanations — keyed by log_id, not claim_id (unlike Fraud): a claim can
+  // have multiple assessment_logs rows, and an explanation is tied to one
+  // specific verdict, not "whatever's currently newest" for that claim.
+  const [explanations, setExplanations] = useState<Record<string, AssessmentExplanation>>({});
+  const [explainingLogId, setExplainingLogId] = useState<string | null>(null);
+  const [explainErrors, setExplainErrors] = useState<Record<string, string>>({});
+  const [justExplainedLogId, setJustExplainedLogId] = useState<string | null>(null);
+
+  function loadExplanations() {
+    getAssessmentExplanations({ limit: 500 })
+      .then(items => {
+        // Results are ordered latest-first — keep only the first (most recent) per log_id
+        const byLogId: Record<string, AssessmentExplanation> = {};
+        for (const e of items) {
+          if (!byLogId[e.log_id]) byLogId[e.log_id] = e;
+        }
+        setExplanations(byLogId);
+      })
+      .catch(() => {}); // non-critical — indicators just won't show until this loads
+  }
+
+  async function handleExplain(claimId: string, logId: string) {
+    setExplainingLogId(logId);
+    setExplainErrors(prev => { const next = { ...prev }; delete next[logId]; return next; });
+    try {
+      const result = await runAssessmentExplanation(claimId, logId);
+      const saved = await createAssessmentExplanation({
+        log_id: logId,
+        claim_id: claimId,
+        explanation_text: result.explanation_text,
+        generated_by: 'audit_log_ui',
+      });
+      setExplanations(prev => ({ ...prev, [logId]: saved }));
+      setJustExplainedLogId(logId);
+      setTimeout(() => setJustExplainedLogId(prev => prev === logId ? null : prev), 3000);
+      setExpanded(logId); // auto-expand so the result is immediately visible
+    } catch (e) {
+      setExplainErrors(prev => ({ ...prev, [logId]: e instanceof Error ? e.message : 'Explanation failed' }));
+    } finally {
+      setExplainingLogId(null);
+    }
+  }
+
   // Fetch everything once (server handles pagination via limit)
   useEffect(() => {
     setLoading(true);
@@ -120,6 +168,7 @@ export default function AuditPage() {
       .catch(e => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
     loadFraudChecks();
+    loadExplanations();
   }, []);
 
   // Derive unique workflow types from actual data
@@ -281,6 +330,7 @@ export default function AuditPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Confidence</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judge Score</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessed</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Explanation</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fraud Risk</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -304,6 +354,60 @@ export default function AuditPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDateTime(log.assessed_at)}
+                    </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      {!log.claim_id || !log.log_id ? (
+                        <span className="text-gray-300">—</span>
+                      ) : explainingLogId === log.log_id ? (
+                        <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                          Running Explain_Assessment_Reasoning…
+                        </span>
+                      ) : explanations[log.log_id] ? (
+                        <div>
+                          <button
+                            onClick={() => handleExplain(log.claim_id, log.log_id)}
+                            title="Click to regenerate this explanation"
+                            className="group inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-brand-600"
+                          >
+                            <span className="font-medium">✓ Explained</span>
+                            <svg
+                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
+                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {justExplainedLogId === log.log_id && (
+                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
+                            )}
+                          </button>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            Explained {fmtDateTime(explanations[log.log_id].generated_at)}
+                          </p>
+                          {explainErrors[log.log_id] && (
+                            <p className="text-[11px] text-red-600 mt-0.5">
+                              Regenerate failed: {explainErrors[log.log_id]}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => handleExplain(log.claim_id, log.log_id)}
+                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
+                          >
+                            View
+                          </button>
+                          {explainErrors[log.log_id] && (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              Failed: {explainErrors[log.log_id]}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {!log.claim_id ? (
@@ -370,7 +474,7 @@ export default function AuditPage() {
                   </tr>
                   {expanded === log.log_id && (
                     <tr key={`${log.log_id}-exp`} className="bg-gray-50">
-                      <td colSpan={8} className="px-6 py-4">
+                      <td colSpan={9} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-xs">
                           <div className="space-y-2">
                             <h4 className="font-semibold text-gray-700 text-sm">Assessment Details</h4>
@@ -405,6 +509,14 @@ export default function AuditPage() {
                               </p>
                             )}
                           </div>
+                          {log.log_id && explanations[log.log_id] && (
+                            <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
+                              <h4 className="font-semibold text-gray-700 text-sm">Explanation</h4>
+                              <p className="whitespace-pre-wrap text-gray-700">
+                                {explanations[log.log_id].explanation_text}
+                              </p>
+                            </div>
+                          )}
                           {log.claim_id && fraudChecks[log.claim_id] && (
                             <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
                               <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">

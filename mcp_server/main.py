@@ -214,6 +214,45 @@ def get_fraud_risk_checks(
     # convention as /claim-documents, not a 404.
     return response.data or []
 
+
+# ── ASSESSMENT EXPLANATIONS ──────────────────────────────────────────────────
+# Deliberately keyed by log_id, not claim_id (unlike fraud_risk_checks) — a
+# claim can have many assessment_logs rows (repeat assessments), and an
+# explanation is tied to one specific verdict, not "whatever's currently
+# newest" for that claim. See Explain_Assessment_Reasoning.yml, which now
+# also takes log_id as an input for the same reason.
+
+class AssessmentExplanationCreate(BaseModel):
+    log_id: str
+    claim_id: str
+    explanation_text: str
+    generated_by: Optional[str] = None
+
+
+@app.post("/explanations")
+def create_assessment_explanation(explanation: AssessmentExplanationCreate):
+    data = {k: v for k, v in explanation.dict().items() if v is not None}
+    response = supabase.table("assessment_explanations").insert(data).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to store assessment explanation")
+    return response.data[0]
+
+
+@app.get("/explanations")
+def get_assessment_explanations(
+    log_id: Optional[str] = Query(None),
+    claim_id: Optional[str] = Query(None),
+    limit: int = Query(500)
+):
+    query = supabase.table("assessment_explanations").select("*")
+    if log_id:
+        query = query.eq("log_id", log_id)
+    if claim_id:
+        query = query.eq("claim_id", claim_id)
+    query = query.order("generated_at", desc=True).limit(limit)
+    response = query.execute()
+    return response.data or []
+
 # ── ASSESSMENT LOGS ───────────────────────────────────────────────────────────
 
 class AssessmentLogCreate(BaseModel):
@@ -249,6 +288,7 @@ def get_assessment_logs(
     recommendation: Optional[str] = Query(None),
     confidence_level: Optional[str] = Query(None),
     claim_id: Optional[str] = Query(None),
+    log_id: Optional[str] = Query(None),
     limit: int = Query(100)
 ):
     query = supabase.table("assessment_logs").select("*")
@@ -260,6 +300,8 @@ def get_assessment_logs(
         query = query.eq("confidence_level", confidence_level)
     if claim_id:
         query = query.eq("claim_id", claim_id)
+    if log_id:
+        query = query.eq("log_id", log_id)
     query = query.order("assessed_at", desc=True).limit(limit)
     response = query.execute()
     return response.data or []
