@@ -71,7 +71,10 @@ export default function AuditPage() {
   // claim only needs to be checked once (latest result wins if re-checked).
   const [fraudChecks, setFraudChecks] = useState<Record<string, FraudRiskCheck>>({});
   const [checkingClaimId, setCheckingClaimId] = useState<string | null>(null);
-  const [fraudError, setFraudError] = useState<string | null>(null);
+  // Per-claim, not a single global error — a failed recheck on one row
+  // shouldn't be ambiguous about which claim it belongs to.
+  const [fraudErrors, setFraudErrors] = useState<Record<string, string>>({});
+  const [justCheckedClaimId, setJustCheckedClaimId] = useState<string | null>(null);
 
   function loadFraudChecks() {
     getFraudRiskChecks({ limit: 500 })
@@ -88,7 +91,7 @@ export default function AuditPage() {
 
   async function handleFraudCheck(claimId: string) {
     setCheckingClaimId(claimId);
-    setFraudError(null);
+    setFraudErrors(prev => { const next = { ...prev }; delete next[claimId]; return next; });
     try {
       const result = await runFraudRiskCheck(claimId);
       const saved = await createFraudRiskCheck({
@@ -99,8 +102,10 @@ export default function AuditPage() {
         checked_by: 'audit_log_ui',
       });
       setFraudChecks(prev => ({ ...prev, [claimId]: saved }));
+      setJustCheckedClaimId(claimId);
+      setTimeout(() => setJustCheckedClaimId(prev => prev === claimId ? null : prev), 3000);
     } catch (e) {
-      setFraudError(e instanceof Error ? e.message : 'Fraud check failed');
+      setFraudErrors(prev => ({ ...prev, [claimId]: e instanceof Error ? e.message : 'Fraud check failed' }));
     } finally {
       setCheckingClaimId(null);
     }
@@ -251,12 +256,6 @@ export default function AuditPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
       )}
-      {fraudError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
-          <span>Fraud check failed: {fraudError}</span>
-          <button onClick={() => setFraudError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
-        </div>
-      )}
       {!loading && !error && logs.length === 0 && (
         <div className="text-center py-20 text-gray-400 text-sm">
           {hasActiveFilter
@@ -310,28 +309,54 @@ export default function AuditPage() {
                       {!log.claim_id ? (
                         <span className="text-gray-300">—</span>
                       ) : checkingClaimId === log.claim_id ? (
-                        <span className="text-xs text-gray-400">Checking…</span>
-                      ) : fraudChecks[log.claim_id] ? (
-                        <button
-                          onClick={() => handleFraudCheck(log.claim_id)}
-                          title="Click to re-run this fraud check"
-                          className="group inline-flex items-center gap-1.5"
-                        >
-                          <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
-                          <svg
-                            className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
-                            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
-                        </button>
+                          Running Fraud_Anomaly_Risk_Signals…
+                        </span>
+                      ) : fraudChecks[log.claim_id] ? (
+                        <div>
+                          <button
+                            onClick={() => handleFraudCheck(log.claim_id)}
+                            title="Click to re-run this fraud check"
+                            className="group inline-flex items-center gap-1.5"
+                          >
+                            <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                            <svg
+                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
+                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {justCheckedClaimId === log.claim_id && (
+                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
+                            )}
+                          </button>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            Checked {fmtDateTime(fraudChecks[log.claim_id].checked_at)}
+                          </p>
+                          {fraudErrors[log.claim_id] && (
+                            <p className="text-[11px] text-red-600 mt-0.5">
+                              Recheck failed: {fraudErrors[log.claim_id]}
+                            </p>
+                          )}
+                        </div>
                       ) : (
-                        <button
-                          onClick={() => handleFraudCheck(log.claim_id)}
-                          className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
-                        >
-                          Check for fraud signals
-                        </button>
+                        <div>
+                          <button
+                            onClick={() => handleFraudCheck(log.claim_id)}
+                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
+                          >
+                            Check for fraud signals
+                          </button>
+                          {fraudErrors[log.claim_id] && (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              Failed: {fraudErrors[log.claim_id]}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
