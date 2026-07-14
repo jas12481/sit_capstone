@@ -198,6 +198,15 @@ workflow:
           required: false
           type: paragraph
           variable: claim_id
+        - default: ''
+          hint: ''
+          label: log_id
+          max_length: 1000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: log_id
       height: 135
       id: '1783400010001'
       position:
@@ -216,11 +225,16 @@ workflow:
           \ _extract_claim_id_from_query(query):\n    q = _clean(query)\n    if not\
           \ q:\n        return \"\"\n    m = re.search(r\"\\b(CLM-\\d{3,6})\\b\",\
           \ q.upper())\n    return m.group(1) if m else \"\"\n\ndef main(start_claim_id=\"\
-          \", query=\"\"):\n    resolved = _clean(start_claim_id) or _extract_claim_id_from_query(query)\n\
-          \    return {\"resolved_claim_id\": resolved}"
+          \", query=\"\", start_log_id=\"\"):\n    resolved_claim_id = _clean(start_claim_id)\
+          \ or _extract_claim_id_from_query(query)\n    resolved_log_id = _clean(start_log_id)\n\
+          \    return {\"resolved_claim_id\": resolved_claim_id, \"resolved_log_id\"\
+          : resolved_log_id}\n"
         code_language: python3
         outputs:
           resolved_claim_id:
+            children: null
+            type: string
+          resolved_log_id:
             children: null
             type: string
         selected: false
@@ -237,6 +251,11 @@ workflow:
           - query
           value_type: string
           variable: query
+        - value_selector:
+          - '1783400010001'
+          - log_id
+          value_type: string
+          variable: start_log_id
       height: 52
       id: '1783400010002'
       position:
@@ -259,7 +278,9 @@ workflow:
           type: none
         headers: Content-Type:application/json
         method: get
-        params: claim_id:{{#1783400010002.resolved_claim_id#}}
+        params: 'claim_id:{{#1783400010002.resolved_claim_id#}}
+
+          log_id:{{#1783400010002.resolved_log_id#}}'
         retry_config:
           max_retries: 3
           retry_enabled: true
@@ -289,10 +310,10 @@ workflow:
       width: 242
     - data:
         code: "import json\n\ndef main(logs_body):\n    try:\n        data = json.loads(logs_body)\n\
-          \    except Exception:\n        data = []\n    if not isinstance(data,\
-          \ list):\n        data = [data] if data else []\n    has_log = len(data)\
-          \ > 0\n    log_json = json.dumps(data[0], ensure_ascii=False) if has_log\
-          \ else \"\"\n    return {\"has_log\": has_log, \"log_json\": log_json}"
+          \    except Exception:\n        data = []\n    if not isinstance(data, list):\n\
+          \        data = [data] if data else []\n    has_log = len(data) > 0\n  \
+          \  log_json = json.dumps(data[0], ensure_ascii=False) if has_log else \"\
+          \"\n    return {\"has_log\": has_log, \"log_json\": log_json}"
         code_language: python3
         outputs:
           has_log:
@@ -365,12 +386,12 @@ workflow:
         prompt_template:
         - id: 7a2b3c4d-5e6f-4a7b-9c8d-0e1f2a3b4c5d
           role: system
-          text: 'You are explaining a completed insurance claim assessment to a
-            claims officer or customer. You will be given the final recommendation,
-            confidence level, number of rules passed/failed, and a coverage conclusion.
-            Write a clear, plain-language explanation of why this verdict was reached.
-            Do not change or second-guess the recommendation — your job is only
-            to explain it.'
+          text: You are explaining a completed insurance claim assessment to a claims
+            officer or customer. You will be given the final recommendation, confidence
+            level, number of rules passed/failed, and a coverage conclusion. Write
+            a clear, plain-language explanation of why this verdict was reached. Do
+            not change or second-guess the recommendation — your job is only to explain
+            it.
         - id: 8b3c4d5e-6f7a-4b8c-ad9e-1f2a3b4c5d6e
           role: user
           text: 'Completed assessment data:
@@ -447,12 +468,12 @@ workflow:
         prompt_template:
         - id: 9c4d5e6f-7a8b-4c9d-be0f-2a3b4c5d6e7f
           role: system
-          text: 'You are assessing an insurance claim. You will be given claim,
-            policy, and eligibility rule data as JSON. Work through each eligibility
-            rule one at a time, stating clearly whether it passes or fails and
-            why, in plain language suitable for a claims officer or customer.
-            Conclude with a clear final recommendation (APPROVE, REJECT, or REFER_FOR_FURTHER_REVIEW)
-            and a one-paragraph plain-language summary.'
+          text: You are assessing an insurance claim. You will be given claim, policy,
+            and eligibility rule data as JSON. Work through each eligibility rule
+            one at a time, stating clearly whether it passes or fails and why, in
+            plain language suitable for a claims officer or customer. Conclude with
+            a clear final recommendation (APPROVE, REJECT, or REFER_FOR_FURTHER_REVIEW)
+            and a one-paragraph plain-language summary.
         - id: 0d5e6f7a-8b9c-4d0e-cf1a-3b4c5d6e7f8a
           role: user
           text: 'Assessment data (claim, policy, and eligibility rules):
