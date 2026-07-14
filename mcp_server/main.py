@@ -253,6 +253,45 @@ def get_assessment_explanations(
     response = query.execute()
     return response.data or []
 
+
+# ── MISSING DOCUMENTATION CHECKS ────────────────────────────────────────────
+# Keyed by claim_id, like fraud_risk_checks — /assessment and /claim-documents
+# both reflect the claim's CURRENT state, not a specific historical
+# assessment_logs row, so unlike explanations this isn't tied to one verdict.
+# Frontend scopes this action to REFER_FOR_FURTHER_REVIEW rows only (see
+# Missing_Documentation_Advisor.yml's own prompt: it determines what's "still
+# required to complete assessment" — only meaningful when assessment
+# couldn't be completed, not for a completed REJECT/APPROVE).
+
+class MissingDocumentationCheckCreate(BaseModel):
+    claim_id: str
+    all_requirements_met: bool
+    missing_documents: Optional[List[dict]] = None
+    submitted_documents_summary: Optional[str] = None
+    checked_by: Optional[str] = None
+
+
+@app.post("/missing-documentation-checks")
+def create_missing_documentation_check(check: MissingDocumentationCheckCreate):
+    data = {k: v for k, v in check.dict().items() if v is not None}
+    response = supabase.table("missing_documentation_checks").insert(data).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to store missing documentation check")
+    return response.data[0]
+
+
+@app.get("/missing-documentation-checks")
+def get_missing_documentation_checks(
+    claim_id: Optional[str] = Query(None),
+    limit: int = Query(500)
+):
+    query = supabase.table("missing_documentation_checks").select("*")
+    if claim_id:
+        query = query.eq("claim_id", claim_id)
+    query = query.order("checked_at", desc=True).limit(limit)
+    response = query.execute()
+    return response.data or []
+
 # ── ASSESSMENT LOGS ───────────────────────────────────────────────────────────
 
 class AssessmentLogCreate(BaseModel):

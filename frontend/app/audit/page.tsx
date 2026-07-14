@@ -7,7 +7,8 @@ import {
   getAssessmentLogs,
   getFraudRiskChecks, runFraudRiskCheck, createFraudRiskCheck,
   getAssessmentExplanations, runAssessmentExplanation, createAssessmentExplanation,
-  type AssessmentLog, type FraudRiskCheck, type AssessmentExplanation,
+  getMissingDocumentationChecks, runMissingDocumentationCheck, createMissingDocumentationCheck,
+  type AssessmentLog, type FraudRiskCheck, type AssessmentExplanation, type MissingDocumentationCheck,
 } from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
@@ -72,6 +73,7 @@ export default function AuditPage() {
   // screen. Keyed by log_id (per-row), independent for each section.
   const [explanationSectionOpen, setExplanationSectionOpen] = useState<Record<string, boolean>>({});
   const [fraudSectionOpen, setFraudSectionOpen] = useState<Record<string, boolean>>({});
+  const [missingDocsSectionOpen, setMissingDocsSectionOpen] = useState<Record<string, boolean>>({});
 
   // Filter state — all filtering is done client-side
   const [workflowFilter, setWorkflowFilter] = useState('');
@@ -169,6 +171,53 @@ export default function AuditPage() {
     }
   }
 
+  // Missing Documentation — keyed by claim_id, like Fraud (reflects the
+  // claim's current state, not tied to one specific assessment_logs row).
+  // Scoped to REFER_FOR_FURTHER_REVIEW rows only in the UI — see the
+  // workflow's own prompt: it determines what's "still required to complete
+  // assessment," which only applies when assessment couldn't be completed.
+  const [missingDocsChecks, setMissingDocsChecks] = useState<Record<string, MissingDocumentationCheck>>({});
+  const [checkingMissingDocsClaimId, setCheckingMissingDocsClaimId] = useState<string | null>(null);
+  const [missingDocsErrors, setMissingDocsErrors] = useState<Record<string, string>>({});
+  const [justCheckedMissingDocsClaimId, setJustCheckedMissingDocsClaimId] = useState<string | null>(null);
+
+  function loadMissingDocsChecks() {
+    getMissingDocumentationChecks({ limit: 500 })
+      .then(checks => {
+        // Results are ordered latest-first — keep only the first (most recent) per claim
+        const byClaimId: Record<string, MissingDocumentationCheck> = {};
+        for (const c of checks) {
+          if (!byClaimId[c.claim_id]) byClaimId[c.claim_id] = c;
+        }
+        setMissingDocsChecks(byClaimId);
+      })
+      .catch(() => {}); // non-critical — indicators just won't show until this loads
+  }
+
+  async function handleMissingDocsCheck(claimId: string, logId: string) {
+    setCheckingMissingDocsClaimId(claimId);
+    setMissingDocsErrors(prev => { const next = { ...prev }; delete next[claimId]; return next; });
+    try {
+      const result = await runMissingDocumentationCheck(claimId);
+      const saved = await createMissingDocumentationCheck({
+        claim_id: claimId,
+        all_requirements_met: result.all_requirements_met,
+        missing_documents: result.missing_documents,
+        submitted_documents_summary: result.submitted_documents_summary,
+        checked_by: 'audit_log_ui',
+      });
+      setMissingDocsChecks(prev => ({ ...prev, [claimId]: saved }));
+      setJustCheckedMissingDocsClaimId(claimId);
+      setTimeout(() => setJustCheckedMissingDocsClaimId(prev => prev === claimId ? null : prev), 3000);
+      setExpanded(logId); // auto-expand so the result is immediately visible
+      setMissingDocsSectionOpen(prev => ({ ...prev, [logId]: true }));
+    } catch (e) {
+      setMissingDocsErrors(prev => ({ ...prev, [claimId]: e instanceof Error ? e.message : 'Missing documentation check failed' }));
+    } finally {
+      setCheckingMissingDocsClaimId(null);
+    }
+  }
+
   // Fetch everything once (server handles pagination via limit)
   useEffect(() => {
     setLoading(true);
@@ -179,6 +228,7 @@ export default function AuditPage() {
       .finally(() => setLoading(false));
     loadFraudChecks();
     loadExplanations();
+    loadMissingDocsChecks();
   }, []);
 
   // Derive unique workflow types from actual data
@@ -341,6 +391,7 @@ export default function AuditPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judge Score</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessed</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessment Explanation</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Missing Docs</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fraud Risk</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -420,6 +471,68 @@ export default function AuditPage() {
                       )}
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      {!log.claim_id || !log.log_id || log.recommendation !== 'REFER_FOR_FURTHER_REVIEW' ? (
+                        <span className="text-gray-300">—</span>
+                      ) : checkingMissingDocsClaimId === log.claim_id ? (
+                        <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                          Running Missing_Documentation_Advisor…
+                        </span>
+                      ) : missingDocsChecks[log.claim_id] ? (
+                        <div>
+                          <button
+                            onClick={() => handleMissingDocsCheck(log.claim_id, log.log_id)}
+                            title="Click to re-run this check"
+                            className="group inline-flex items-center gap-1.5"
+                          >
+                            {missingDocsChecks[log.claim_id].all_requirements_met ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                Complete
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
+                              </span>
+                            )}
+                            <svg
+                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
+                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {justCheckedMissingDocsClaimId === log.claim_id && (
+                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
+                            )}
+                          </button>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            Checked {fmtDateTime(missingDocsChecks[log.claim_id].checked_at)}
+                          </p>
+                          {missingDocsErrors[log.claim_id] && (
+                            <p className="text-[11px] text-red-600 mt-0.5">
+                              Recheck failed: {missingDocsErrors[log.claim_id]}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => handleMissingDocsCheck(log.claim_id, log.log_id)}
+                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
+                          >
+                            Check missing docs
+                          </button>
+                          {missingDocsErrors[log.claim_id] && (
+                            <p className="text-[11px] text-red-600 mt-1">
+                              Failed: {missingDocsErrors[log.claim_id]}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {!log.claim_id ? (
                         <span className="text-gray-300">—</span>
                       ) : checkingClaimId === log.claim_id ? (
@@ -484,7 +597,7 @@ export default function AuditPage() {
                   </tr>
                   {expanded === log.log_id && (
                     <tr key={`${log.log_id}-exp`} className="bg-gray-50">
-                      <td colSpan={9} className="px-6 py-4">
+                      <td colSpan={10} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-xs">
                           <div className="space-y-2">
                             <h4 className="font-semibold text-gray-700 text-sm">Assessment Details</h4>
@@ -594,6 +707,54 @@ export default function AuditPage() {
                                     </ul>
                                   ) : (
                                     <p className="text-gray-400">No specific flags raised.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {log.claim_id && log.log_id && missingDocsChecks[log.claim_id] && (
+                            <div className="col-span-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => setMissingDocsSectionOpen(prev => ({ ...prev, [log.log_id]: !prev[log.log_id] }))}
+                                className="w-full flex items-center justify-between py-1 text-left"
+                              >
+                                <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
+                                  Missing Documentation
+                                  {missingDocsChecks[log.claim_id].all_requirements_met ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                      Complete
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                      {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
+                                    </span>
+                                  )}
+                                </h4>
+                                <svg
+                                  className={`w-4 h-4 text-gray-400 transition-transform ${missingDocsSectionOpen[log.log_id] ? 'rotate-180' : ''}`}
+                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {missingDocsSectionOpen[log.log_id] && (
+                                <div className="space-y-2 mt-2">
+                                  <p>
+                                    <span className="text-gray-500">Submitted documents:</span>{' '}
+                                    {missingDocsChecks[log.claim_id].submitted_documents_summary || '—'}
+                                  </p>
+                                  {missingDocsChecks[log.claim_id].missing_documents?.length > 0 ? (
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {missingDocsChecks[log.claim_id].missing_documents.map((d, i) => (
+                                        <li key={i}>
+                                          <span className="font-medium">{d.document_type}</span>{' '}
+                                          <span className="font-mono text-xs text-gray-400">({d.linked_rule_id})</span>
+                                          {': '}{d.reason}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-gray-400">No missing documents identified.</p>
                                   )}
                                 </div>
                               )}

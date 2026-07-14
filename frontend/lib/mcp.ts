@@ -207,6 +207,53 @@ export async function runAssessmentExplanation(claim_id: string, log_id: string)
   return json;
 }
 
+// ── Missing Documentation Checks ────────────────────────────────────────────
+// Keyed by claim_id, like Fraud — reflects the claim's current state, not
+// tied to one specific assessment_logs row.
+
+export type MissingDocument = { document_type: string; linked_rule_id: string; reason: string };
+
+export type MissingDocumentationCheck = {
+  id: string;
+  claim_id: string;
+  all_requirements_met: boolean;
+  missing_documents: MissingDocument[];
+  submitted_documents_summary: string;
+  checked_by: string;
+  checked_at: string;
+};
+
+export function getMissingDocumentationChecks(filters?: { claim_id?: string; limit?: number }) {
+  return get<MissingDocumentationCheck[]>('/missing-documentation-checks', filters as Record<string, string>);
+}
+
+export function createMissingDocumentationCheck(check: {
+  claim_id: string;
+  all_requirements_met: boolean;
+  missing_documents?: MissingDocument[];
+  submitted_documents_summary?: string;
+  checked_by?: string;
+}) {
+  return post<MissingDocumentationCheck>('/missing-documentation-checks', check);
+}
+
+// Calls the Dify Missing_Documentation_Advisor workflow directly (not the MCP
+// proxy — this hits /api/dify/missing-docs, a separate server-side Dify proxy).
+export async function runMissingDocumentationCheck(claim_id: string): Promise<{
+  all_requirements_met: boolean;
+  missing_documents: MissingDocument[];
+  submitted_documents_summary: string;
+}> {
+  const res = await fetch('/api/dify/missing-docs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ claim_id }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `Missing documentation check failed (${res.status})`);
+  return json;
+}
+
 // ── DSL Scan ─────────────────────────────────────────────────────────────────
 
 export type ScanSummary = {
