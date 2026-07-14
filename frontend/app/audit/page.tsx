@@ -519,9 +519,19 @@ export default function AuditPage() {
                                   remarkPlugins={[remarkGfm]}
                                   components={{
                                     p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
-                                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
-                                    li: ({ children }) => <li className="leading-snug">{children}</li>,
+                                    // Manual bullet/number rendering, not native list-style — the LLM
+                                    // often writes "loose" list items (a bold lead-in followed by a
+                                    // separate paragraph), which causes a block-level <p> inside the
+                                    // <li>. Native markers detach visually from block-level content;
+                                    // a flex row keeps the marker and content together regardless.
+                                    ul: ({ children }) => <ul className="list-none pl-0 space-y-2 mb-2">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-none pl-0 space-y-2 mb-2">{children}</ol>,
+                                    li: ({ children }) => (
+                                      <li className="flex gap-2 leading-snug">
+                                        <span className="select-none text-gray-400">•</span>
+                                        <span className="flex-1 [&>p]:mb-1 [&>p:last-child]:mb-0">{children}</span>
+                                      </li>
+                                    ),
                                     strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
                                     h2: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
                                     h3: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
