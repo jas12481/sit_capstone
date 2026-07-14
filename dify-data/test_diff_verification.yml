@@ -1,0 +1,16 @@
+app:
+  name: Test_Diff_Verification
+workflow:
+  graph:
+    nodes:
+      - id: "test_node_1"
+        data:
+          type: llm
+          title: test_llm_node
+          model:
+            name: gpt-5.2
+            provider: openai
+          prompt_template:
+            - role: system
+              text: "This is version one of a test system prompt for diff verification."
+          structured_output_enabled: false
