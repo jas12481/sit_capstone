@@ -9,14 +9,19 @@ import {
   rejectChange,
   scanDslFolder,
   getDslStatus,
+  getSnapshotFiles,
+  getWorkflowSnapshots,
+  takeWorkflowSnapshot,
   type ChangeApproval,
   type WorkflowNode,
   type ScanSummary,
   type DslStatus,
+  type SnapshotHistory,
+  type SnapshotRunResult,
 } from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
-type Tab = 'pending' | 'history' | 'nodes';
+type Tab = 'pending' | 'history' | 'nodes' | 'snapshots';
 
 // ── Node content parser & viewer ─────────────────────────────────────────────
 
@@ -373,6 +378,183 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
   );
 }
 
+function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
+  const [files, setFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState('');
+  const [history, setHistory] = useState<SnapshotHistory | null>(null);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histError, setHistError] = useState('');
+
+  const [reason, setReason] = useState('');
+  const [taking, setTaking] = useState<'selected' | 'all' | null>(null);
+  const [takeError, setTakeError] = useState('');
+  const [takeResult, setTakeResult] = useState<SnapshotRunResult | null>(null);
+
+  useEffect(() => {
+    getSnapshotFiles()
+      .then(r => {
+        setFiles(r.files);
+        if (r.files.length > 0) setSelectedFile(r.files[0]);
+      })
+      .catch(() => setHistError('Could not load workflow file list.'));
+  }, []);
+
+  const loadHistory = useCallback(async (file: string) => {
+    if (!file) return;
+    setHistLoading(true);
+    setHistError('');
+    try {
+      const h = await getWorkflowSnapshots(file);
+      setHistory(h);
+    } catch (e: unknown) {
+      setHistError(e instanceof Error ? e.message : 'Failed to load snapshot history — has the dsl-governance-history branch been created yet?');
+      setHistory(null);
+    } finally {
+      setHistLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadHistory(selectedFile); }, [selectedFile, loadHistory]);
+
+  async function take(scope: 'selected' | 'all') {
+    if (!verifiedName) {
+      setTakeError('Your Okta identity could not be verified — try signing in again.');
+      return;
+    }
+    if (!reason.trim()) {
+      setTakeError('A reason for this snapshot is required.');
+      return;
+    }
+    setTaking(scope);
+    setTakeError('');
+    setTakeResult(null);
+    try {
+      const result = await takeWorkflowSnapshot(scope === 'all' ? null : [selectedFile], verifiedName, reason);
+      setTakeResult(result);
+      if (selectedFile) await loadHistory(selectedFile);
+    } catch (e: unknown) {
+      setTakeError(e instanceof Error ? e.message : 'Snapshot failed');
+    } finally {
+      setTaking(null);
+    }
+  }
+
+  const githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-800">Workflow Snapshots</h2>
+        <p className="text-xs text-gray-500 mt-0.5 mb-4">
+          Full whole-file version history of every dify-data/*.yml, committed to a dedicated
+          <code className="font-mono bg-gray-100 px-1 rounded mx-1">dsl-governance-history</code>
+          branch — kept separate from regular app-code commits on main.
+        </p>
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <select
+            value={selectedFile}
+            onChange={e => setSelectedFile(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-72"
+          >
+            {files.length === 0 && <option value="">No workflow files found</option>}
+            {files.map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <input
+            className="flex-1 min-w-[240px] border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            placeholder="Reason for this snapshot (required)"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+          />
+          <button
+            onClick={() => take('selected')}
+            disabled={!!taking || !selectedFile}
+            className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            {taking === 'selected' ? 'Snapshotting…' : 'Snapshot This File'}
+          </button>
+          <button
+            onClick={() => take('all')}
+            disabled={!!taking || files.length === 0}
+            className="bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            {taking === 'all' ? 'Snapshotting…' : `Snapshot All (${files.length})`}
+          </button>
+        </div>
+
+        {takeError && <p className="mt-3 text-xs text-red-600">{takeError}</p>}
+
+        {takeResult && (
+          <div className="mt-4 space-y-1">
+            {takeResult.results.map((r, i) => (
+              <p key={i} className="text-xs">
+                {r.status === 'ok' ? (
+                  <span className="text-green-600">✓ {r.file}</span>
+                ) : (
+                  <span className="text-red-600">✗ {r.file}: {r.detail}</span>
+                )}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+          History — {selectedFile || '(no file selected)'}
+        </h3>
+
+        {histLoading && <p className="text-sm text-gray-400">Loading…</p>}
+        {histError && (
+          <p className="text-xs text-orange-600">{histError}</p>
+        )}
+
+        {!histLoading && !histError && history && (
+          history.commits.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              No snapshots yet for this file. Click <strong>Snapshot This File</strong> above to create the first one.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {history.compare_url && (
+                <a
+                  href={history.compare_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs text-brand-600 hover:underline mb-2"
+                >
+                  Compare latest two versions →
+                </a>
+              )}
+              {history.commits.map(c => (
+                <div key={c.sha} className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2 text-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <a
+                      href={githubRepo ? `https://github.com/${githubRepo}/commit/${c.sha}` : '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-brand-600 hover:underline flex-shrink-0"
+                    >
+                      {c.short_sha}
+                    </a>
+                    <span className="text-gray-600 truncate">{c.message}</span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0 text-gray-400">
+                    <span>{c.author}</span>
+                    <span>{fmtDateTime(c.date)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DslPage() {
   const { data: session } = useSession();
   const verifiedName = session?.user?.name || session?.user?.email || '';
@@ -438,6 +620,7 @@ export default function DslPage() {
     { id: 'pending', label: 'Pending Approvals', count: pending.length },
     { id: 'history', label: 'History' },
     { id: 'nodes', label: 'Stored Nodes' },
+    { id: 'snapshots', label: 'Workflow Snapshots' },
   ];
 
   return (
@@ -664,6 +847,8 @@ export default function DslPage() {
           </div>
         );
       })()}
+
+      {!loading && tab === 'snapshots' && <SnapshotPanel verifiedName={verifiedName} />}
     </div>
   );
 }

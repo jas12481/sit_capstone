@@ -124,9 +124,21 @@ def parse_workflow(file_path: str | Path) -> list[dict[str, Any]]:
         raise FileNotFoundError(f"YAML not found: {path}")
 
     with path.open("r", encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh)
+        raw_text = fh.read()
 
-    workflow_name: str = raw.get("app", {}).get("name", path.stem)
+    return parse_workflow_content(raw_text, workflow_name_fallback=path.stem)
+
+
+def parse_workflow_content(yaml_text: str, workflow_name_fallback: str = "") -> list[dict[str, Any]]:
+    """
+    Same extraction as parse_workflow, but from raw YAML text already in
+    memory (e.g. downloaded from Supabase Storage) rather than a local file.
+    parse_workflow is now a thin wrapper around this — keep all actual
+    extraction logic here so both entry points never drift apart.
+    """
+    raw = yaml.safe_load(yaml_text)
+
+    workflow_name: str = raw.get("app", {}).get("name", workflow_name_fallback)
     nodes: list[dict] = raw.get("workflow", {}).get("graph", {}).get("nodes", [])
 
     extracted: list[dict[str, Any]] = []

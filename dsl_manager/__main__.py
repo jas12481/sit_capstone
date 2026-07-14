@@ -25,11 +25,21 @@ python -m dsl_manager reject <approval_id> --by "Sarah Tan" --reason "Need more 
 # 7. List all approvals (all statuses)
 python -m dsl_manager list-all
 python -m dsl_manager list-all --workflow Life_Assess_Claim --status approved
+
+# 8. Snapshot the current on-disk state of one or all workflow YAMLs to the
+#    dedicated dsl-governance-history branch (full-file version history,
+#    isolated from main — for auditability, independent of node-level approvals)
+python -m dsl_manager snapshot --file dify-data/Life_Assess_Claim.yml --by jaz --reason "post-edit checkpoint"
+python -m dsl_manager snapshot --all --by jaz --reason "baseline snapshot of all workflows"
+
+# 9. Show snapshot history for a workflow file + a compare link between the two latest
+python -m dsl_manager history --file dify-data/Life_Assess_Claim.yml
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import sys
 from pathlib import Path
@@ -353,6 +363,67 @@ def cmd_reject(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_snapshot(args: argparse.Namespace) -> None:
+    """
+    Commit the current on-disk content of one or all dify-data/*.yml workflow
+    files to the dedicated dsl-governance-history branch. Independent of the
+    node-level approval flow — this is a whole-file version checkpoint, useful
+    any time (new workflow added, batch of edits done, before a demo, etc.).
+    """
+    if args.all:
+        files = sorted(glob.glob("dify-data/*.yml"))
+        if not files:
+            _warn("No .yml files found under dify-data/.")
+            return
+    else:
+        files = [args.file]
+
+    _hr()
+    for file_path in files:
+        if not Path(file_path).is_file():
+            _err(f"File not found, skipped: {file_path}")
+            continue
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+            commit_sha = git_commit.commit_workflow_snapshot(
+                repo_path=git_commit._repo_relative_path(file_path),
+                content=content,
+                committed_by=args.by,
+                reason=args.reason,
+            )
+            _ok(f"{Path(file_path).name}  →  {git_commit.get_commit_url(commit_sha)}")
+        except EnvironmentError as exc:
+            _err(f"Snapshot skipped: {exc}")
+            sys.exit(1)
+        except Exception as exc:  # noqa: BLE001
+            _err(f"Snapshot failed for {file_path}: {exc}")
+    _hr()
+    print(f"  Branch: {git_commit._governance_branch()}")
+
+
+def cmd_history(args: argparse.Namespace) -> None:
+    """Show past snapshot commits for a workflow file, newest first."""
+    commits = git_commit.list_workflow_snapshots(args.file, limit=args.limit)
+    if not commits:
+        _warn(f"No snapshot history found for {args.file} on branch "
+              f"'{git_commit._governance_branch()}'.")
+        return
+
+    print(f"\n  Snapshot history for {args.file}  ({len(commits)} shown):\n")
+    _hr()
+    for c in commits:
+        print(f"  {c['short_sha']}  {c['date']}  {c['author']:<20}  {c['message']}")
+    _hr()
+
+    if len(commits) >= 2:
+        newest, previous = commits[0], commits[1]
+        print(
+            f"  Compare latest two: "
+            f"{git_commit.get_compare_url(previous['sha'], newest['sha'])}"
+        )
+
+
 # ── utility ───────────────────────────────────────────────────────────────────
 
 def _extract_new_content_from_diff(diff_content: str) -> str:
@@ -425,6 +496,22 @@ def _build_parser() -> argparse.ArgumentParser:
     rej_p.add_argument("--by", required=True, help="Your name")
     rej_p.add_argument("--reason", required=True, help="Mandatory justification for rejection")
 
+    # snapshot
+    snap_p = sub.add_parser(
+        "snapshot",
+        help="Commit whole-file workflow snapshot(s) to the dsl-governance-history branch",
+    )
+    snap_group = snap_p.add_mutually_exclusive_group(required=True)
+    snap_group.add_argument("--file", help="Path to a single dify-data/*.yml file")
+    snap_group.add_argument("--all", action="store_true", help="Snapshot every dify-data/*.yml file")
+    snap_p.add_argument("--by", required=True, help="Your name (stored as committer in commit message)")
+    snap_p.add_argument("--reason", required=True, help="Why this snapshot is being taken")
+
+    # history
+    hist_p = sub.add_parser("history", help="Show snapshot history for a workflow file")
+    hist_p.add_argument("--file", required=True, help="Path to a dify-data/*.yml file")
+    hist_p.add_argument("--limit", type=int, default=20, help="Max commits to show (default 20)")
+
     return p
 
 
@@ -436,6 +523,8 @@ _COMMANDS = {
     "show": cmd_show,
     "approve": cmd_approve,
     "reject": cmd_reject,
+    "snapshot": cmd_snapshot,
+    "history": cmd_history,
 }
 
 

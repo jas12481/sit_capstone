@@ -13,8 +13,9 @@ import sys
 # shared by this server-side scan and the `dsl_manager` CLI — do not
 # reimplement node extraction here.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from dsl_manager.parser import parse_workflow, hash_content  # noqa: E402
+from dsl_manager.parser import parse_workflow, parse_workflow_content, hash_content  # noqa: E402
 from dsl_manager.diff import compute_diff  # noqa: E402
+from dsl_manager import git_commit  # noqa: E402
 
 load_dotenv()
 
@@ -300,6 +301,13 @@ def create_workflow_node(node: WorkflowNodeCreate):
 
 # ── CHANGE APPROVALS ──────────────────────────────────────────────────────────
 
+class SnapshotRequest(BaseModel):
+    # None/empty → snapshot every dify-data/*.yml file
+    files: Optional[List[str]] = None
+    by: str
+    reason: str
+
+
 class ChangeApprovalCreate(BaseModel):
     node_id: Optional[str] = None
     workflow_name: str
@@ -411,25 +419,35 @@ def reject_change(approval_id: str, body: ApproveRejectBody):
 
 
 # ── DSL SCAN ──────────────────────────────────────────────────────────────────
-# Reads every .yml in dify-data/, parses LLM/code/agent nodes, compares
-# SHA256 hashes against workflow_nodes table, and:
+# Reads every .yml from the "dify-workflows" Supabase Storage bucket (the
+# sole source of truth for "current" workflow state — dify-data/ on disk is
+# kept only as a frozen historical artifact and is never read by any of the
+# endpoints below), parses LLM/code/agent nodes, compares SHA256 hashes
+# against workflow_nodes table, and:
 #   - First-seen nodes  → stored directly as baseline (no approval needed)
 #   - Changed nodes     → pending change_approval created (unless one already pending)
 # ─────────────────────────────────────────────────────────────────────────────
 
-DIFY_DATA_DIR = Path(__file__).parent.parent / "dify-data"
+WORKFLOW_BUCKET = "dify-workflows"
+
+
+def _list_workflow_storage_files() -> list[str]:
+    """Bare filenames (e.g. "Life_Assess_Claim.yml") currently in the bucket."""
+    items = supabase.storage.from_(WORKFLOW_BUCKET).list()
+    return sorted(item["name"] for item in (items or []) if item["name"].endswith(".yml"))
+
+
+def _download_workflow_file(name: str) -> bytes:
+    return supabase.storage.from_(WORKFLOW_BUCKET).download(name)
 
 
 @app.get("/dsl/status")
 def dsl_status():
     """
-    Return summary of what .yml files are in dify-data/ and how many
-    nodes are stored per workflow in workflow_nodes.
+    Return summary of what .yml files are in the dify-workflows Storage
+    bucket and how many nodes are stored per workflow in workflow_nodes.
     """
-    if not DIFY_DATA_DIR.exists():
-        raise HTTPException(status_code=404, detail="dify-data/ folder not found next to mcp_server/")
-
-    files = sorted(p.name for p in DIFY_DATA_DIR.glob("*.yml"))
+    files = _list_workflow_storage_files()
 
     stored_resp = supabase.table("workflow_nodes").select("workflow_name, node_name, content_hash, committed_at").execute()
     stored_by_workflow: dict[str, list] = {}
@@ -446,7 +464,7 @@ def dsl_status():
     pending_set = {(r["workflow_name"], r["node_name"]) for r in (pending_resp.data or [])}
 
     return {
-        "dify_data_dir": str(DIFY_DATA_DIR),
+        "storage_bucket": WORKFLOW_BUCKET,
         "files_in_folder": files,
         "stored_workflows": {wf: len(nodes) for wf, nodes in stored_by_workflow.items()},
         "pending_approvals": len(pending_set),
@@ -456,18 +474,15 @@ def dsl_status():
 @app.post("/dsl/scan")
 def dsl_scan(submitted_by: str = Query(..., description="Name of the person triggering the scan")):
     """
-    Scan all .yml files in dify-data/.
+    Scan all .yml files in the dify-workflows Storage bucket.
     - First-seen nodes  → stored as baseline in workflow_nodes (no approval)
     - Changed nodes     → pending change_approval created (skipped if one already pending)
     - Unchanged nodes   → skipped
     Returns a full summary of the scan.
     """
-    if not DIFY_DATA_DIR.exists():
-        raise HTTPException(status_code=404, detail="dify-data/ folder not found next to mcp_server/")
-
-    yaml_files = sorted(DIFY_DATA_DIR.glob("*.yml"))
+    yaml_files = _list_workflow_storage_files()
     if not yaml_files:
-        raise HTTPException(status_code=404, detail="No YAML files found in dify-data/")
+        raise HTTPException(status_code=404, detail=f"No YAML files found in the '{WORKFLOW_BUCKET}' bucket")
 
     # Load all stored nodes keyed by (workflow_name, node_name)
     stored_resp = supabase.table("workflow_nodes").select("*").execute()
@@ -493,12 +508,15 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
         "errors": [],
     }
 
-    for yaml_file in yaml_files:
-        summary["scanned_files"].append(yaml_file.name)
+    for yaml_name in yaml_files:
+        summary["scanned_files"].append(yaml_name)
         try:
-            nodes = parse_workflow(yaml_file)
+            raw_bytes = _download_workflow_file(yaml_name)
+            nodes = parse_workflow_content(
+                raw_bytes.decode("utf-8"), workflow_name_fallback=Path(yaml_name).stem
+            )
         except Exception as exc:
-            summary["errors"].append({"file": yaml_file.name, "error": str(exc)})
+            summary["errors"].append({"file": yaml_name, "error": str(exc)})
             continue
 
         for node in nodes:
@@ -572,3 +590,91 @@ def dsl_scan(submitted_by: str = Query(..., description="Name of the person trig
     }
 
     return summary
+
+
+# ── DSL WORKFLOW SNAPSHOTS ──────────────────────────────────────────────────────
+# Whole-file version history of dify-data/*.yml, committed to a dedicated
+# dsl-governance-history branch (never main) — independent of the node-level
+# approval flow above. Exists so the actual YAML files (not just individually
+# extracted node text) have a full, diffable audit trail visible in the
+# frontend, not just via the dsl_manager CLI.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/dsl/snapshot-files")
+def dsl_snapshot_files():
+    """
+    List every workflow YAML in the dify-workflows Storage bucket, eligible
+    for a whole-file snapshot. Returned as "dify-data/{name}" strings (the
+    same shape as before the Storage migration) purely so the snapshot's
+    commit path on the governance branch stays consistent with history
+    already there — the actual source of content is Storage, not disk.
+    """
+    files = [f"dify-data/{name}" for name in _list_workflow_storage_files()]
+    return {"files": files}
+
+
+@app.get("/dsl/snapshots")
+def dsl_snapshots(
+    file: str = Query(..., description="Path to a dify-data/*.yml file, e.g. dify-data/Life_Assess_Claim.yml"),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    Return the whole-file snapshot commit history for one workflow YAML,
+    read live from the dsl-governance-history branch on GitHub.
+    """
+    try:
+        commits = git_commit.list_workflow_snapshots(file, limit=limit)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    compare_url = None
+    if len(commits) >= 2:
+        compare_url = git_commit.get_compare_url(commits[1]["sha"], commits[0]["sha"])
+
+    return {
+        "file": file,
+        "branch": git_commit._governance_branch(),
+        "commits": commits,
+        "compare_url": compare_url,
+    }
+
+
+@app.post("/dsl/snapshots")
+def dsl_take_snapshot(body: SnapshotRequest):
+    """
+    Commit the current Storage-bucket content of one or all workflow YAMLs to
+    the dsl-governance-history branch. Creates the branch first if needed.
+    """
+    targets = body.files or [f"dify-data/{name}" for name in _list_workflow_storage_files()]
+    if not targets:
+        raise HTTPException(status_code=404, detail=f"No YAML files found in the '{WORKFLOW_BUCKET}' bucket")
+
+    results = []
+    for path in targets:
+        # Accept both "dify-data/Name.yml" (what /dsl/snapshot-files returns)
+        # and a bare "Name.yml" — either way, resolve to the bare Storage
+        # object name for the download, and keep the "dify-data/" form as
+        # the commit's repo path for continuity with existing history.
+        name = path.split("/")[-1]
+        repo_path = path if path.startswith("dify-data/") else f"dify-data/{name}"
+        try:
+            content = _download_workflow_file(name)
+        except Exception as exc:  # noqa: BLE001
+            results.append({"file": path, "status": "error", "detail": f"Not found in bucket: {exc}"})
+            continue
+        try:
+            sha = git_commit.commit_workflow_snapshot(
+                repo_path=repo_path, content=content, committed_by=body.by, reason=body.reason
+            )
+            results.append({
+                "file": path,
+                "status": "ok",
+                "commit_sha": sha,
+                "commit_url": git_commit.get_commit_url(sha),
+            })
+        except EnvironmentError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except Exception as exc:  # noqa: BLE001
+            results.append({"file": path, "status": "error", "detail": str(exc)})
+
+    return {"branch": git_commit._governance_branch(), "results": results}

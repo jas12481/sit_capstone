@@ -186,7 +186,7 @@ export type ScanSummary = {
 };
 
 export type DslStatus = {
-  dify_data_dir: string;
+  storage_bucket: string;
   files_in_folder: string[];
   stored_workflows: Record<string, number>;
   pending_approvals: number;
@@ -198,4 +198,46 @@ export function getDslStatus() {
 
 export function scanDslFolder(submitted_by: string) {
   return post<ScanSummary>(`/dsl/scan?submitted_by=${encodeURIComponent(submitted_by)}`, {});
+}
+
+// ── Workflow Snapshots (whole-file version history, dsl-governance-history branch) ─
+
+export type SnapshotCommit = {
+  sha: string;
+  short_sha: string;
+  message: string;
+  date: string;
+  author: string;
+};
+
+export type SnapshotHistory = {
+  file: string;
+  branch: string;
+  commits: SnapshotCommit[];
+  compare_url: string | null;
+};
+
+export type SnapshotResult = {
+  file: string;
+  status: 'ok' | 'error';
+  commit_sha?: string;
+  commit_url?: string;
+  detail?: string;
+};
+
+export type SnapshotRunResult = {
+  branch: string;
+  results: SnapshotResult[];
+};
+
+export function getSnapshotFiles() {
+  return get<{ files: string[] }>('/dsl/snapshot-files');
+}
+
+export function getWorkflowSnapshots(file: string, limit?: number) {
+  return get<SnapshotHistory>('/dsl/snapshots', { file, limit });
+}
+
+export function takeWorkflowSnapshot(files: string[] | null, by: string, reason: string) {
+  return post<SnapshotRunResult>('/dsl/snapshots', { files, by, reason });
 }
