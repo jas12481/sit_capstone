@@ -1,7 +1,7 @@
 # AIA Capstone Project — Full Context Document
 > **For:** Claude Code and any AI assistant picking up this project  
 > **Author:** Jasbir Kaur (2302990), Applied Computing (FinTech), Singapore Institute of Technology  
-> **Last updated:** 13 July 2026 (active build log)
+> **Last updated:** 14 July 2026 (active build log)
 
 ---
 
@@ -192,20 +192,26 @@ Component 8: Frontend (React + Vercel)
 ```
 sit_capstone/
 ├── mcp_server/
-│   ├── main.py                  # All 13 endpoints (v2.0.0)
-│   └── .env                     # SUPABASE_URL, SUPABASE_KEY, DATABRICKS_HOST, DATABRICKS_TOKEN (not committed)
+│   ├── main.py                  # All 24 endpoints (v2.1.0)
+│   └── .env                     # SUPABASE_URL, SUPABASE_KEY, DATABRICKS_HOST, DATABRICKS_TOKEN,
+│                                 # GITHUB_TOKEN, GITHUB_REPO, GITHUB_GOVERNANCE_BRANCH (not committed)
 ├── frontend/                    # React (Vercel) — 4 views
-├── dify-data/                   # Dify DSL YAML exports for all workflows
+├── dify-data/                   # FROZEN historical artifact only (2026-07-14) — no longer read by the
+│                                 # running system; "current" workflow state lives in the dify-workflows
+│                                 # Supabase Storage bucket instead (see §11, §14)
 ├── evaluation/
 │   ├── test_claims.json         # 20 test claims + ground truth
 │   ├── run_evaluation.py        # 4 strategies × 20 claims = 80 MLflow runs
 │   ├── metrics.py               # Hallucination detection + scoring functions
 │   └── prompt_advisor.py        # Prompt optimisation agent
 ├── dsl_manager/
-│   ├── parser.py                # Parses Dify YAML, extracts LLM/code/agent nodes
+│   ├── parser.py                # Parses Dify YAML, extracts LLM/code/agent nodes; parse_workflow_content()
+│   │                             # (2026-07-14) parses in-memory YAML text, not just local files
 │   ├── diff.py                  # Diffs new DSL against stored version
 │   ├── approvals.py             # Sign-off workflow
-│   └── git_commit.py           # Commits approved changes to GitHub
+│   ├── git_commit.py            # Per-node commits to main + whole-file snapshots to dsl-governance-history
+│   └── __main__.py              # CLI: init/scan/approve/reject/list + snapshot/history (2026-07-14)
+├── migrate_workflows_to_storage.py  # One-time dify-data/ → dify-workflows Storage seed (2026-07-14)
 ├── setup_mlflow.py              # One-time MLflow + Databricks setup script
 ├── generate_data.py
 ├── generate_pdfs.py
@@ -611,7 +617,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 
 **Cloud:** https://sit-capstone.onrender.com
 
-### All 19 Endpoints (corrected 2026-07-13 — table had drifted from the actual file)
+### All 24 Endpoints (corrected 2026-07-14 — added Storage-backed DSL snapshot/upload/node-diff endpoints)
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -632,8 +638,13 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/change-approvals` | POST | Create change approval request |
 | `/change-approvals/{id}/approve` | POST | Approve + trigger git commit |
 | `/change-approvals/{id}/reject` | POST | Reject change |
-| `/dsl/status` | GET | DSL scan status (server-side scan of `dify-data/`) |
+| `/dsl/status` | GET | DSL scan status (reads the `dify-workflows` Supabase Storage bucket, not disk) |
 | `/dsl/scan` | POST | Server-side DSL scan trigger (frontend DSL Management view) |
+| `/dsl/upload` | POST | Upload a workflow YAML directly into the `dify-workflows` Storage bucket (multipart) |
+| `/dsl/snapshot-files` | GET | List workflow files eligible for a whole-file snapshot |
+| `/dsl/snapshots` | GET | Whole-file snapshot commit history for one workflow, read live from GitHub |
+| `/dsl/snapshots` | POST | Commit current Storage content of one/all workflows to the governance branch |
+| `/dsl/snapshots/node-diff` | GET | Node-level diff: latest snapshot vs. current — only nodes that differ |
 
 **404-on-empty convention fixed (2026-07-13):** `/claims` and `/policies` originally raised a 404 on
 *any* empty result, including valid list-style filters (e.g. `customer_id`, `policy_id`-only,
@@ -650,9 +661,13 @@ SUPABASE_URL=https://[project-ref].supabase.co
 SUPABASE_KEY=[service_role_secret_key]
 DATABRICKS_HOST=https://dbc-0dc2996b-ae12.cloud.databricks.com
 DATABRICKS_TOKEN=[365-day personal access token]
-GITHUB_TOKEN=[personal access token for git commits]
+GITHUB_TOKEN=[personal access token for git commits — also gates whole-file snapshot commits]
 GITHUB_REPO=jas12481/sit_capstone
+GITHUB_GOVERNANCE_BRANCH=dsl-governance-history   # optional, defaults to this name
 ```
+**Not yet mirrored to Render** (deploy gap, see §14 and §20): `GITHUB_TOKEN`/`GITHUB_REPO` only exist
+in the local `.env` as of 2026-07-14. Also requires `python-multipart` (added to `requirements.txt`
+2026-07-14 for `/dsl/upload`'s multipart file handling) to actually install on Render's next deploy.
 
 ---
 
@@ -662,6 +677,10 @@ GITHUB_REPO=jas12481/sit_capstone
 - **RLS:** Enabled on all 7 tables
 - **Access:** MCP server only (secret key bypasses RLS)
 - **Tables:** policies, claims, claim_documents, eligibility_rules, assessment_logs, workflow_nodes, change_approvals
+- **Storage buckets:** `policy-documents` (public, 1,000 policy PDFs) and **`dify-workflows`** (private,
+  added 2026-07-14 — the sole "current version" source of truth for all 25 Dify workflow YAMLs; see §14.
+  Private because only the MCP server's service-role key ever touches it, same bypass-RLS mechanism used
+  for the database tables — no bucket policies needed)
 
 ---
 
@@ -876,13 +895,19 @@ A governed version control system for Dify workflow configurations. Parses expor
 
 ### Modules
 
-- `dsl_manager/parser.py` — reads YAML, extracts nodes, computes SHA256 hashes. This is the single
-  source of truth for node extraction — `mcp_server/main.py`'s `/dsl/scan` endpoint imports these same
-  functions rather than re-implementing them, so the CLI and the frontend-triggered scan always agree
-  on what counts as "changed."
-- `dsl_manager/diff.py` — human-readable before/after diff
+- `dsl_manager/parser.py` — reads YAML, extracts nodes, computes SHA256 hashes. `parse_workflow(path)`
+  is now a thin wrapper around `parse_workflow_content(yaml_text, workflow_name_fallback)` (added
+  2026-07-14) — the actual extraction logic lives in the latter so it can parse YAML already in memory
+  (downloaded from Supabase Storage or fetched from GitHub) as well as a local file. This is the single
+  source of truth for node extraction — `mcp_server/main.py`'s `/dsl/scan` and the new node-diff
+  endpoint both import these same functions rather than re-implementing them.
+- `dsl_manager/diff.py` — human-readable before/after diff (`compute_diff`), reused for both node-level
+  approval diffs and the new whole-file-snapshot node-diff comparison
 - `dsl_manager/approvals.py` — create_approval, approve_change, reject_change
-- `dsl_manager/git_commit.py` — GitHub API commit with attribution metadata
+- `dsl_manager/git_commit.py` — GitHub API commits with attribution metadata. Two independent
+  mechanisms live here now (see below): per-node approved-snippet commits to `main`
+  (`commit_approved_change`), and whole-file snapshots to a dedicated branch (`commit_workflow_snapshot`,
+  `list_workflow_snapshots`, `get_file_content_at_ref`, `ensure_governance_branch`).
 
 ### Audit Trail Chain
 
@@ -891,6 +916,60 @@ Assessment decision → prompt_version → change_approvals record → git_commi
 ```
 
 An auditor can trace any assessment back to who approved the prompt that produced it.
+
+### Whole-File Version History (added 2026-07-13/14) — Supabase Storage + Dedicated GitHub Branch
+
+A second, independent governance mechanism alongside the node-level approval flow above. Where the
+approval flow tracks and signs off individual *extracted node* changes, this tracks the **whole workflow
+file** as a real, diffable version history — built because Jasbir wanted a place where every version of
+every workflow is committed for visibility/auditability, decoupled from `main` so governance commits
+never mix with regular app-code commits, and because GitHub's own compare view gives "version
+comparison... for free" once the history exists.
+
+**Storage migration — disk is no longer the source of truth.** `dify-data/*.yml` on local disk is now a
+**frozen historical artifact only** — kept permanently in the repo for the report's before/after
+narrative, but never read by the running system. The **`dify-workflows` Supabase Storage bucket** (see
+§11) is the sole "current version" source for all 25 workflows. `/dsl/scan`, `/dsl/status`,
+`/dsl/snapshot-files`, `/dsl/snapshots` (POST), and `/dsl/snapshots/node-diff` all read from/write to
+Storage exclusively. `migrate_workflows_to_storage.py` (repo root) was the one-time script that seeded
+the bucket from disk on 2026-07-13 — safe to re-run (upsert), not part of any ongoing flow.
+
+**Whole-file snapshots — `dsl-governance-history` branch.** `commit_workflow_snapshot(repo_path,
+content, committed_by, reason)` commits raw file bytes (from Storage, downloaded by the caller — the
+function itself has no opinion on the content's source) to a dedicated branch, auto-created off `main`
+on first use via `ensure_governance_branch()`. Every commit is a full point-in-time version of that
+workflow at the same `dify-data/{name}.yml` path used before the Storage migration (kept for continuity
+with history already on the branch). Triggered via `POST /dsl/snapshots` (one file or all) from the
+frontend's **Workflow Snapshots** tab, or `python -m dsl_manager snapshot --file <path>|--all --by
+<name> --reason "<text>"` from the CLI.
+
+**Known GitHub API gotcha, already fixed:** GitHub's commits API `?path=` filter excludes any commit
+where the file's git tree didn't actually change — guaranteed true for a workflow's very first snapshot
+(freshly forked off `main`, then immediately re-committed with identical content). That baseline commit
+is 100% real (reachable, has a valid SHA) but invisible to path-filtered history. Fixed by having
+`list_workflow_snapshots()` match on the commit message's `[SNAPSHOT] {filename}:` prefix instead of
+relying on git's tree-diff — finds every snapshot regardless of whether content actually changed.
+
+**Node-level comparison — `GET /dsl/snapshots/node-diff`.** Jasbir explicitly wanted "just the nodes
+that are different, not the entire files" when comparing the latest snapshot against the current
+version — not a raw whole-file text diff. Fetches the latest snapshot's content via
+`get_file_content_at_ref()` (new — reads a file at a specific commit SHA, not just commit metadata) and
+the current content from Storage, parses both with `parse_workflow_content()`, and returns only nodes
+whose content hash actually differs (`added`/`changed`/`removed`), each with a proper diff via the
+existing `compute_diff()`. Rendered in the frontend under "Changes Since Last Snapshot," reusing the
+existing per-type `NodeContentViewer`/`DiffViewer` components — no new diff-rendering logic.
+
+**Upload page — `POST /dsl/upload`.** Lets Jasbir add/update a workflow YAML directly through the
+frontend, landing in the Storage bucket immediately — no manual file placement or backend/server access
+needed for day-to-day workflow updates. Validates the upload is real, parseable Dify DSL (via
+`parse_workflow_content`) before accepting; rejects non-`.yml`/`.yaml` files and unparseable YAML with a
+clear error. Requires `python-multipart` (added to `requirements.txt` 2026-07-14).
+
+**Deliberately still CLI-only, not extended to this mechanism:** the server-side
+`/change-approvals/{id}/approve` endpoint still does not commit to GitHub (per the original deferral,
+§ above) — that gap is about the *node-level approval* flow specifically, unaffected by any of the
+whole-file snapshot work above, which is its own separate, already-fully-wired mechanism (both CLI and
+frontend can trigger a snapshot commit).
 
 ---
 
@@ -986,7 +1065,12 @@ run_for_workflow(workflow_type, dry_run)         # orchestrates the above per wo
 
 **3. Management Dashboard** *(business stakeholders)* — claims volume by type, recommendation distribution chart, LLM-as-Judge score trend over time, confidence by workflow type, anomaly flags, workload by officer
 
-**4. DSL Change Management View** *(IT governance)* — all workflows with current version and last commit, pending changes with full diff, approval form (verified identity + reason mandatory), approval history with Git commit links
+**4. DSL Change Management View** *(IT governance)* — four tabs as of 2026-07-14: **Pending Approvals**
+(node-level diffs, approval form with verified identity + mandatory reason), **History** (approved/
+rejected past changes), **Stored Nodes** (per-workflow node browser), and **Workflow Snapshots** (new —
+upload a workflow YAML directly to the `dify-workflows` Storage bucket; take/browse whole-file version
+snapshots on the `dsl-governance-history` GitHub branch; "Changes Since Last Snapshot" node-level diff
+against the current version — see §14)
 
 ### Authentication (Okta SSO — DSL Change Management view only)
 
@@ -1152,6 +1236,12 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | Dify key removed from client bundle | ✅ Done | Chat view now proxies through `app/api/dify/chat/route.ts`; was previously `NEXT_PUBLIC_DIFY_API_KEY`, shipped to the browser — rotated after the fix |
 | DSL scan/extraction consolidated | ✅ Done | `mcp_server/main.py` now imports `dsl_manager/parser.py` + `diff.py` instead of duplicating extraction logic; fixed a `node_id` UUID bug and missing `change_approvals` columns (`node_type`, `new_content`, `new_hash`) surfaced by the fix |
 | Okta SSO for DSL Change Management | ✅ Done | NextAuth.js + Okta Integrator Free Plan org; gates `/dsl` only; verified identity replaces free-text approver name |
+| Whole-file workflow version history | ✅ Done | `dsl-governance-history` GitHub branch, dedicated from `main`; `commit_workflow_snapshot`/`list_workflow_snapshots`/`ensure_governance_branch` in `git_commit.py`; new "Workflow Snapshots" frontend tab; CLI `snapshot`/`history` subcommands. Fixed a real GitHub API gotcha (path-filtered commit history silently excludes no-op-content commits — matched on commit message prefix instead). Committed `7982d70` |
+| `dify-data/` → Supabase Storage migration | ✅ Done | New private `dify-workflows` bucket is now the sole "current version" source for `/dsl/scan`, `/dsl/status`, `/dsl/snapshot-files`, snapshot-taking, and node-diff — zero disk dependency. `dify-data/*.yml` on disk kept permanently as a frozen historical artifact only (Jasbir's explicit choice, for the report's before/after narrative), never read by the running system. One-time seed via `migrate_workflows_to_storage.py` (all 25 files, re-run-safe). `parse_workflow_content()` added to `dsl_manager/parser.py` so parsing works on in-memory YAML text (Storage/GitHub), not just local files |
+| Node-level snapshot comparison | ✅ Done | `GET /dsl/snapshots/node-diff` — latest GitHub snapshot vs. current Storage content, node-level only (not raw whole-file diff), reusing `parse_workflow_content`/`compute_diff`; "Changes Since Last Snapshot" section in the frontend |
+| Workflow upload page | ✅ Done | `POST /dsl/upload` (multipart, validates real Dify DSL before accepting) + frontend upload card in the Workflow Snapshots tab — add/update a workflow directly from the browser, no manual file placement or backend access needed. Added `python-multipart` dependency |
+| Governance review pass (2026-07-13/14 session) | ✅ Done | 12 real pending `change_approvals` reviewed and actioned: 5 approved (deterministic rule-count fix formalized across Life/Health/Disability/CI, plus a Disability `policy_document_analysis` baseline correction) + 4 approved (`claim_documents`/`content_summary` visibility fix, same 4 workflows) + 7 rejected (unapplied `prompt_advisor_agent` hallucination-guardrail proposals — general guardrails already present and judged sufficient). All via CLI with real GitHub commits |
+| **Deploy gap:** Storage/snapshot work not yet live on Render | 🔲 Open | `GITHUB_TOKEN`/`GITHUB_REPO`/`GITHUB_GOVERNANCE_BRANCH` only in local `mcp_server/.env` as of 2026-07-14, not yet mirrored to Render's dashboard; `python-multipart` needs to install on Render's next deploy for `/dsl/upload` to work live |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
 
@@ -1164,6 +1254,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Late June** | DSL Change Management System — `dsl_manager/` modules (`parser.py`, `diff.py`, `approvals.py`, `git_commit.py`); Okta SSO for `/dsl` |
 | **Done (2026-07-06/07)** | Frontend — all 4 views; MLflow Prompt Registry (79 prompts) + local viewer; 6 new Dify apps (3 product capabilities + 3 research-only); full dataset consistency backfill; 4-strategy research harness (18/20 final); 3-app product-capability harness (14/15 final); `evaluation/prompt_advisor.py` run for real (8 pending approvals) |
 | **Done (2026-07-13)** | `claims_history`/`customer_history` orchestrator intents (2 new shared sub-workflows, 6-intent orchestrator, 3 real routing-bug fixes); `/claims`/`/policies` 404-on-empty backend fix, deployed and confirmed live; stale `Test_Orchestrator-1.yml` deleted, single canonical orchestrator file — full build scope now considered complete |
+| **Done (2026-07-13/14)** | Whole-file workflow version history (`dsl-governance-history` GitHub branch); migrated DSL "current version" source of truth from local disk to a new private Supabase Storage bucket (`dify-workflows`), `dify-data/` kept as a frozen historical artifact only; node-level snapshot-vs-current comparison; workflow upload page (Storage-backed, no manual file placement); 12-item governance review pass (5+4 approved, 7 rejected, real GitHub commits). Committed `7982d70` + `983b561`. Not yet deployed to Render — local-only until env vars mirrored |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
@@ -1188,4 +1279,4 @@ Any financial institution deploying agentic AI can apply these six layers regard
 
 ---
 
-*Last updated: 13 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*
+*Last updated: 14 July 2026. Any AI assistant or developer picking up this project must read this document in full before making changes to the codebase, Dify workflow configurations, MLflow tracking setup, or DSL artifacts.*

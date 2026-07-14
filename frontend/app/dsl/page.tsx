@@ -828,12 +828,12 @@ export default function DslPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-800">Scan dify-data/</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Scan Workflow Storage</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Reads all YAMLs in the folder, detects changes, and creates pending approvals automatically.
+              Reads all YAMLs in the dify-workflows Storage bucket, detects changes, and creates pending approvals automatically.
               {dslStatus && (
                 <span className="ml-2 text-gray-400">
-                  {dslStatus.files_in_folder.length} file{dslStatus.files_in_folder.length !== 1 ? 's' : ''} in folder
+                  {dslStatus.files_in_folder.length} file{dslStatus.files_in_folder.length !== 1 ? 's' : ''} in bucket
                   · {dslStatus.pending_approvals} pending
                 </span>
               )}
@@ -958,7 +958,7 @@ export default function DslPage() {
         <div className="space-y-3">
           {pending.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">
-              No pending approvals. Run <code className="font-mono bg-gray-100 px-1 rounded">python -m dsl_manager scan</code> to detect changes.
+              No pending approvals. Click <strong>Scan Workflow Storage</strong> above to detect changes.
             </div>
           ) : (
             pending.map(a => (
@@ -1018,7 +1018,7 @@ export default function DslPage() {
 
             {filtered.length === 0 ? (
               <div className="text-center py-16 text-gray-400 text-sm">
-                No nodes stored. Click <strong>Scan dify-data/</strong> above to baseline all workflows.
+                No nodes stored. Click <strong>Scan Workflow Storage</strong> above to baseline all workflows.
               </div>
             ) : (
               <NodeTable nodes={filtered} />
