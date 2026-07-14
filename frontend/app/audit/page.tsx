@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   getAssessmentLogs,
   getFraudRiskChecks, runFraudRiskCheck, createFraudRiskCheck,
@@ -330,7 +332,7 @@ export default function AuditPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Confidence</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judge Score</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessed</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Explanation</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessment Explanation</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fraud Risk</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -511,10 +513,23 @@ export default function AuditPage() {
                           </div>
                           {log.log_id && explanations[log.log_id] && (
                             <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
-                              <h4 className="font-semibold text-gray-700 text-sm">Explanation</h4>
-                              <p className="whitespace-pre-wrap text-gray-700">
-                                {explanations[log.log_id].explanation_text}
-                              </p>
+                              <h4 className="font-semibold text-gray-700 text-sm">Assessment Explanation</h4>
+                              <div className="text-gray-700">
+                                <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+                                    li: ({ children }) => <li className="leading-snug">{children}</li>,
+                                    strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
+                                    h2: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
+                                    h3: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
+                                  }}
+                                >
+                                  {explanations[log.log_id].explanation_text}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           )}
                           {log.claim_id && fraudChecks[log.claim_id] && (
