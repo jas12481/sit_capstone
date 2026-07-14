@@ -34,7 +34,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // ── Assessment Logs ──────────────────────────────────────────────────────────
 
 export type AssessmentLog = {
-  id: string;
+  log_id: string;
   claim_id: string;
   workflow_type: string;
   recommendation: string;

@@ -290,9 +290,9 @@ export default function AuditPage() {
               {logs.map(log => (
                 <>
                   <tr
-                    key={log.id}
+                    key={log.log_id}
                     className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => toggle(log.id)}
+                    onClick={() => toggle(log.log_id)}
                   >
                     <td className="px-4 py-3 font-mono text-xs text-gray-700">{log.claim_id || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{log.workflow_type}</td>
@@ -324,15 +324,15 @@ export default function AuditPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       <svg
-                        className={`w-4 h-4 transition-transform ${expanded === log.id ? 'rotate-180' : ''}`}
+                        className={`w-4 h-4 transition-transform ${expanded === log.log_id ? 'rotate-180' : ''}`}
                         fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </td>
                   </tr>
-                  {expanded === log.id && (
-                    <tr key={`${log.id}-exp`} className="bg-gray-50">
+                  {expanded === log.log_id && (
+                    <tr key={`${log.log_id}-exp`} className="bg-gray-50">
                       <td colSpan={8} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-xs">
                           <div className="space-y-2">
