@@ -67,6 +67,11 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Sub-sections within an expanded row, collapsed by default — keeps a row
+  // with both a long explanation and fraud signals from taking over the
+  // screen. Keyed by log_id (per-row), independent for each section.
+  const [explanationSectionOpen, setExplanationSectionOpen] = useState<Record<string, boolean>>({});
+  const [fraudSectionOpen, setFraudSectionOpen] = useState<Record<string, boolean>>({});
 
   // Filter state — all filtering is done client-side
   const [workflowFilter, setWorkflowFilter] = useState('');
@@ -96,7 +101,7 @@ export default function AuditPage() {
       .catch(() => {}); // non-critical — badges just won't show until this loads
   }
 
-  async function handleFraudCheck(claimId: string) {
+  async function handleFraudCheck(claimId: string, logId: string) {
     setCheckingClaimId(claimId);
     setFraudErrors(prev => { const next = { ...prev }; delete next[claimId]; return next; });
     try {
@@ -111,6 +116,8 @@ export default function AuditPage() {
       setFraudChecks(prev => ({ ...prev, [claimId]: saved }));
       setJustCheckedClaimId(claimId);
       setTimeout(() => setJustCheckedClaimId(prev => prev === claimId ? null : prev), 3000);
+      setExpanded(logId); // auto-expand so the result is immediately visible (same as Explain)
+      setFraudSectionOpen(prev => ({ ...prev, [logId]: true }));
     } catch (e) {
       setFraudErrors(prev => ({ ...prev, [claimId]: e instanceof Error ? e.message : 'Fraud check failed' }));
     } finally {
@@ -154,6 +161,7 @@ export default function AuditPage() {
       setJustExplainedLogId(logId);
       setTimeout(() => setJustExplainedLogId(prev => prev === logId ? null : prev), 3000);
       setExpanded(logId); // auto-expand so the result is immediately visible
+      setExplanationSectionOpen(prev => ({ ...prev, [logId]: true }));
     } catch (e) {
       setExplainErrors(prev => ({ ...prev, [logId]: e instanceof Error ? e.message : 'Explanation failed' }));
     } finally {
@@ -425,7 +433,7 @@ export default function AuditPage() {
                       ) : fraudChecks[log.claim_id] ? (
                         <div>
                           <button
-                            onClick={() => handleFraudCheck(log.claim_id)}
+                            onClick={() => handleFraudCheck(log.claim_id, log.log_id)}
                             title="Click to re-run this fraud check"
                             className="group inline-flex items-center gap-1.5"
                           >
@@ -452,7 +460,7 @@ export default function AuditPage() {
                       ) : (
                         <div>
                           <button
-                            onClick={() => handleFraudCheck(log.claim_id)}
+                            onClick={() => handleFraudCheck(log.claim_id, log.log_id)}
                             className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
                           >
                             Check for fraud signals
@@ -512,54 +520,82 @@ export default function AuditPage() {
                             )}
                           </div>
                           {log.log_id && explanations[log.log_id] && (
-                            <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
-                              <h4 className="font-semibold text-gray-700 text-sm">Assessment Explanation</h4>
-                              <div className="text-gray-700">
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={{
-                                    p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                                    // Manual bullet/number rendering, not native list-style — the LLM
-                                    // often writes "loose" list items (a bold lead-in followed by a
-                                    // separate paragraph), which causes a block-level <p> inside the
-                                    // <li>. Native markers detach visually from block-level content;
-                                    // a flex row keeps the marker and content together regardless.
-                                    ul: ({ children }) => <ul className="list-none pl-0 space-y-2 mb-2">{children}</ul>,
-                                    ol: ({ children }) => <ol className="list-none pl-0 space-y-2 mb-2">{children}</ol>,
-                                    li: ({ children }) => (
-                                      <li className="flex gap-2 leading-snug">
-                                        <span className="select-none text-gray-400">•</span>
-                                        <span className="flex-1 [&>p]:mb-1 [&>p:last-child]:mb-0">{children}</span>
-                                      </li>
-                                    ),
-                                    strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
-                                    h2: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
-                                    h3: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
-                                  }}
+                            <div className="col-span-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => setExplanationSectionOpen(prev => ({ ...prev, [log.log_id]: !prev[log.log_id] }))}
+                                className="w-full flex items-center justify-between py-1 text-left"
+                              >
+                                <h4 className="font-semibold text-gray-700 text-sm">Assessment Explanation</h4>
+                                <svg
+                                  className={`w-4 h-4 text-gray-400 transition-transform ${explanationSectionOpen[log.log_id] ? 'rotate-180' : ''}`}
+                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
                                 >
-                                  {explanations[log.log_id].explanation_text}
-                                </ReactMarkdown>
-                              </div>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {explanationSectionOpen[log.log_id] && (
+                                <div className="text-gray-700 mt-2">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                                      // Manual bullet/number rendering, not native list-style — the LLM
+                                      // often writes "loose" list items (a bold lead-in followed by a
+                                      // separate paragraph), which causes a block-level <p> inside the
+                                      // <li>. Native markers detach visually from block-level content;
+                                      // a flex row keeps the marker and content together regardless.
+                                      ul: ({ children }) => <ul className="list-none pl-0 space-y-2 mb-2">{children}</ul>,
+                                      ol: ({ children }) => <ol className="list-none pl-0 space-y-2 mb-2">{children}</ol>,
+                                      li: ({ children }) => (
+                                        <li className="flex gap-2 leading-snug">
+                                          <span className="select-none text-gray-400">•</span>
+                                          <span className="flex-1 [&>p]:mb-1 [&>p:last-child]:mb-0">{children}</span>
+                                        </li>
+                                      ),
+                                      strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
+                                      h2: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
+                                      h3: ({ children }) => <h4 className="font-semibold text-gray-700 text-sm mt-3 mb-1 first:mt-0">{children}</h4>,
+                                    }}
+                                  >
+                                    {explanations[log.log_id].explanation_text}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
                             </div>
                           )}
-                          {log.claim_id && fraudChecks[log.claim_id] && (
-                            <div className="space-y-2 col-span-2 pt-2 border-t border-gray-200">
-                              <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
-                                Fraud/Anomaly Risk Signals
-                                <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
-                              </h4>
-                              <p>
-                                <span className="text-gray-500">Recommended action:</span>{' '}
-                                {fraudChecks[log.claim_id].recommended_action?.replace(/_/g, ' ') || '—'}
-                              </p>
-                              {fraudChecks[log.claim_id].flags?.length > 0 ? (
-                                <ul className="list-disc list-inside space-y-1">
-                                  {fraudChecks[log.claim_id].flags.map((f, i) => (
-                                    <li key={i}><span className="font-medium">{f.signal}:</span> {f.explanation}</li>
-                                  ))}
-                                </ul>
-                              ) : (
-                                <p className="text-gray-400">No specific flags raised.</p>
+                          {log.claim_id && log.log_id && fraudChecks[log.claim_id] && (
+                            <div className="col-span-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => setFraudSectionOpen(prev => ({ ...prev, [log.log_id]: !prev[log.log_id] }))}
+                                className="w-full flex items-center justify-between py-1 text-left"
+                              >
+                                <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
+                                  Fraud/Anomaly Risk Signals
+                                  <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                                </h4>
+                                <svg
+                                  className={`w-4 h-4 text-gray-400 transition-transform ${fraudSectionOpen[log.log_id] ? 'rotate-180' : ''}`}
+                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {fraudSectionOpen[log.log_id] && (
+                                <div className="space-y-2 mt-2">
+                                  <p>
+                                    <span className="text-gray-500">Recommended action:</span>{' '}
+                                    {fraudChecks[log.claim_id].recommended_action?.replace(/_/g, ' ') || '—'}
+                                  </p>
+                                  {fraudChecks[log.claim_id].flags?.length > 0 ? (
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {fraudChecks[log.claim_id].flags.map((f, i) => (
+                                        <li key={i}><span className="font-medium">{f.signal}:</span> {f.explanation}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-gray-400">No specific flags raised.</p>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
