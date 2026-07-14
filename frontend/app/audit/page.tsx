@@ -309,10 +309,22 @@ export default function AuditPage() {
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       {!log.claim_id ? (
                         <span className="text-gray-300">—</span>
-                      ) : fraudChecks[log.claim_id] ? (
-                        <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
                       ) : checkingClaimId === log.claim_id ? (
                         <span className="text-xs text-gray-400">Checking…</span>
+                      ) : fraudChecks[log.claim_id] ? (
+                        <button
+                          onClick={() => handleFraudCheck(log.claim_id)}
+                          title="Click to re-run this fraud check"
+                          className="group inline-flex items-center gap-1.5"
+                        >
+                          <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                          <svg
+                            className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
+                            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
                       ) : (
                         <button
                           onClick={() => handleFraudCheck(log.claim_id)}
