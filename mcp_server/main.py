@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -441,6 +441,51 @@ def _download_workflow_file(name: str) -> bytes:
     return supabase.storage.from_(WORKFLOW_BUCKET).download(name)
 
 
+@app.post("/dsl/upload")
+async def dsl_upload_workflow(
+    file: UploadFile = File(...),
+    uploaded_by: str = Form(...),
+):
+    """
+    Upload an exported Dify DSL YAML directly into the dify-workflows Storage
+    bucket — becomes "current" immediately for /dsl/scan, snapshot-taking,
+    and node-diff comparison, no local file placement or backend access
+    needed. Overwrites any existing file with the same name (upsert).
+    """
+    if not (file.filename.endswith(".yml") or file.filename.endswith(".yaml")):
+        raise HTTPException(status_code=400, detail="Only .yml/.yaml files are accepted")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    try:
+        nodes = parse_workflow_content(
+            content.decode("utf-8"), workflow_name_fallback=Path(file.filename).stem
+        )
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File is not valid UTF-8 text")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Not valid Dify DSL YAML: {exc}")
+
+    try:
+        supabase.storage.from_(WORKFLOW_BUCKET).upload(
+            path=file.filename,
+            file=content,
+            file_options={"content-type": "application/x-yaml", "upsert": "true"},
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Upload to Storage failed: {exc}")
+
+    return {
+        "filename": file.filename,
+        "size": len(content),
+        "node_count": len(nodes),
+        "workflow_name": nodes[0]["workflow_name"] if nodes else Path(file.filename).stem,
+        "uploaded_by": uploaded_by,
+    }
+
+
 @app.get("/dsl/status")
 def dsl_status():
     """
@@ -678,3 +723,84 @@ def dsl_take_snapshot(body: SnapshotRequest):
             results.append({"file": path, "status": "error", "detail": str(exc)})
 
     return {"branch": git_commit._governance_branch(), "results": results}
+
+
+@app.get("/dsl/snapshots/node-diff")
+def dsl_snapshot_node_diff(
+    file: str = Query(..., description="e.g. dify-data/Life_Assess_Claim.yml"),
+):
+    """
+    Compare the latest GitHub snapshot of a workflow against its current
+    Storage-bucket content at the NODE level — only nodes whose content
+    hash actually differs are returned (added/removed/changed), using the
+    same parse_workflow_content()/compute_diff() machinery the approval
+    flow already uses, instead of a raw whole-file text diff.
+    """
+    try:
+        commits = git_commit.list_workflow_snapshots(file, limit=1)
+    except EnvironmentError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    if not commits:
+        raise HTTPException(status_code=404, detail="No snapshot exists yet for this file.")
+
+    latest = commits[0]
+    repo_path = file if file.startswith("dify-data/") else f"dify-data/{file}"
+    name = file.split("/")[-1]
+
+    try:
+        snapshot_bytes = git_commit.get_file_content_at_ref(repo_path, latest["sha"])
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Could not fetch snapshot content: {exc}")
+
+    try:
+        current_bytes = _download_workflow_file(name)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail=f"Not found in bucket: {exc}")
+
+    fallback = Path(name).stem
+    snapshot_nodes = {
+        n["node_name"]: n
+        for n in parse_workflow_content(snapshot_bytes.decode("utf-8"), workflow_name_fallback=fallback)
+    }
+    current_nodes = {
+        n["node_name"]: n
+        for n in parse_workflow_content(current_bytes.decode("utf-8"), workflow_name_fallback=fallback)
+    }
+
+    changed: list[dict] = []
+    unchanged_count = 0
+
+    for node_name in sorted(set(snapshot_nodes) | set(current_nodes)):
+        snap = snapshot_nodes.get(node_name)
+        curr = current_nodes.get(node_name)
+
+        if snap and curr:
+            if snap["content_hash"] == curr["content_hash"]:
+                unchanged_count += 1
+                continue
+            status, node_type = "changed", curr["node_type"]
+            diff = compute_diff(snap["content"], curr["content"], node_name, node_type)
+        elif curr and not snap:
+            status, node_type = "added", curr["node_type"]
+            diff = compute_diff("", curr["content"], node_name, node_type)
+        else:
+            status, node_type = "removed", snap["node_type"]
+            diff = compute_diff(snap["content"], "", node_name, node_type)
+
+        changed.append({
+            "node_name": node_name,
+            "node_type": node_type,
+            "status": status,
+            "diff_content": diff,
+        })
+
+    return {
+        "file": file,
+        "snapshot_sha": latest["sha"],
+        "snapshot_short_sha": latest["short_sha"],
+        "snapshot_date": latest["date"],
+        "snapshot_message": latest["message"],
+        "changed_nodes": changed,
+        "unchanged_count": unchanged_count,
+    }

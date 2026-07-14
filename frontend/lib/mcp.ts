@@ -241,3 +241,48 @@ export function getWorkflowSnapshots(file: string, limit?: number) {
 export function takeWorkflowSnapshot(files: string[] | null, by: string, reason: string) {
   return post<SnapshotRunResult>('/dsl/snapshots', { files, by, reason });
 }
+
+// ── Snapshot Node Diff (latest snapshot vs. current, node-level only) ──────────
+
+export type ChangedNode = {
+  node_name: string;
+  node_type: 'llm' | 'code' | 'agent';
+  status: 'changed' | 'added' | 'removed';
+  diff_content: string;
+};
+
+export type SnapshotNodeDiff = {
+  file: string;
+  snapshot_sha: string;
+  snapshot_short_sha: string;
+  snapshot_date: string;
+  snapshot_message: string;
+  changed_nodes: ChangedNode[];
+  unchanged_count: number;
+};
+
+export function getSnapshotNodeDiff(file: string) {
+  return get<SnapshotNodeDiff>('/dsl/snapshots/node-diff', { file });
+}
+
+// ── Upload Workflow (lands directly in the dify-workflows Storage bucket) ──────
+
+export type UploadResult = {
+  filename: string;
+  size: number;
+  node_count: number;
+  workflow_name: string;
+  uploaded_by: string;
+};
+
+export async function uploadWorkflowFile(file: File, uploaded_by: string): Promise<UploadResult> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('uploaded_by', uploaded_by);
+  const res = await fetch(`${BASE}/dsl/upload`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `MCP POST /dsl/upload → ${res.status}`);
+  }
+  return res.json();
+}

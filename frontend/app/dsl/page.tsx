@@ -12,12 +12,17 @@ import {
   getSnapshotFiles,
   getWorkflowSnapshots,
   takeWorkflowSnapshot,
+  getSnapshotNodeDiff,
+  uploadWorkflowFile,
   type ChangeApproval,
   type WorkflowNode,
   type ScanSummary,
   type DslStatus,
   type SnapshotHistory,
   type SnapshotRunResult,
+  type SnapshotNodeDiff,
+  type ChangedNode,
+  type UploadResult,
 } from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
@@ -378,6 +383,15 @@ function NodeTable({ nodes }: { nodes: WorkflowNode[] }) {
   );
 }
 
+function NodeDiffStatusBadge({ status }: { status: ChangedNode['status'] }) {
+  const s = {
+    changed: 'bg-orange-100 text-orange-800',
+    added: 'bg-blue-100 text-blue-800',
+    removed: 'bg-red-100 text-red-800',
+  }[status];
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${s}`}>{status}</span>;
+}
+
 function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
   const [files, setFiles] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
@@ -385,19 +399,61 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
   const [histLoading, setHistLoading] = useState(false);
   const [histError, setHistError] = useState('');
 
+  const [nodeDiff, setNodeDiff] = useState<SnapshotNodeDiff | null>(null);
+  const [nodeDiffLoading, setNodeDiffLoading] = useState(false);
+  const [nodeDiffError, setNodeDiffError] = useState('');
+  const [expandedNode, setExpandedNode] = useState<string | null>(null);
+
   const [reason, setReason] = useState('');
   const [taking, setTaking] = useState<'selected' | 'all' | null>(null);
   const [takeError, setTakeError] = useState('');
   const [takeResult, setTakeResult] = useState<SnapshotRunResult | null>(null);
 
-  useEffect(() => {
-    getSnapshotFiles()
-      .then(r => {
-        setFiles(r.files);
-        if (r.files.length > 0) setSelectedFile(r.files[0]);
-      })
-      .catch(() => setHistError('Could not load workflow file list.'));
+  const [uploadFileObj, setUploadFileObj] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+
+  const loadFiles = useCallback(async (selectName?: string) => {
+    try {
+      const r = await getSnapshotFiles();
+      setFiles(r.files);
+      if (selectName) {
+        setSelectedFile(`dify-data/${selectName}`);
+      } else if (r.files.length > 0 && !selectedFile) {
+        setSelectedFile(r.files[0]);
+      }
+    } catch {
+      setHistError('Could not load workflow file list.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { loadFiles(); }, [loadFiles]);
+
+  const existingFileNames = files.map(f => f.split('/').pop());
+  const uploadWouldOverwrite = uploadFileObj && existingFileNames.includes(uploadFileObj.name);
+
+  async function handleUpload() {
+    if (!uploadFileObj) return;
+    if (!verifiedName) {
+      setUploadError('Your Okta identity could not be verified — try signing in again.');
+      return;
+    }
+    setUploading(true);
+    setUploadError('');
+    setUploadResult(null);
+    try {
+      const result = await uploadWorkflowFile(uploadFileObj, verifiedName);
+      setUploadResult(result);
+      setUploadFileObj(null);
+      await loadFiles(result.filename);
+    } catch (e: unknown) {
+      setUploadError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const loadHistory = useCallback(async (file: string) => {
     if (!file) return;
@@ -416,6 +472,24 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
 
   useEffect(() => { loadHistory(selectedFile); }, [selectedFile, loadHistory]);
 
+  const loadNodeDiff = useCallback(async (file: string) => {
+    if (!file) return;
+    setNodeDiffLoading(true);
+    setNodeDiffError('');
+    try {
+      const d = await getSnapshotNodeDiff(file);
+      setNodeDiff(d);
+    } catch (e: unknown) {
+      // A 404 here just means no snapshot exists yet — not a real error.
+      setNodeDiffError(e instanceof Error ? e.message : 'Failed to load node-level diff');
+      setNodeDiff(null);
+    } finally {
+      setNodeDiffLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadNodeDiff(selectedFile); setExpandedNode(null); }, [selectedFile, loadNodeDiff]);
+
   async function take(scope: 'selected' | 'all') {
     if (!verifiedName) {
       setTakeError('Your Okta identity could not be verified — try signing in again.');
@@ -431,7 +505,10 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
     try {
       const result = await takeWorkflowSnapshot(scope === 'all' ? null : [selectedFile], verifiedName, reason);
       setTakeResult(result);
-      if (selectedFile) await loadHistory(selectedFile);
+      if (selectedFile) {
+        await loadHistory(selectedFile);
+        await loadNodeDiff(selectedFile);
+      }
     } catch (e: unknown) {
       setTakeError(e instanceof Error ? e.message : 'Snapshot failed');
     } finally {
@@ -443,6 +520,47 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
 
   return (
     <div className="space-y-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-800">Upload Workflow</h2>
+        <p className="text-xs text-gray-500 mt-0.5 mb-4">
+          Upload an exported Dify DSL YAML directly — lands in Storage immediately, becomes
+          &quot;current&quot; for scanning/snapshotting/comparison. No manual file placement or
+          backend access needed.
+        </p>
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="file"
+            accept=".yml,.yaml"
+            onChange={e => { setUploadFileObj(e.target.files?.[0] ?? null); setUploadError(''); setUploadResult(null); }}
+            className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+          />
+          <button
+            onClick={handleUpload}
+            disabled={!uploadFileObj || uploading}
+            className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            {uploading ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
+
+        {uploadWouldOverwrite && !uploading && (
+          <p className="mt-3 text-xs text-orange-600">
+            &quot;{uploadFileObj?.name}&quot; already exists in the bucket — uploading will overwrite
+            the current version. Take a snapshot first if you want to preserve what&apos;s there now.
+          </p>
+        )}
+
+        {uploadError && <p className="mt-3 text-xs text-red-600">{uploadError}</p>}
+
+        {uploadResult && (
+          <p className="mt-3 text-xs text-green-600">
+            ✓ Uploaded {uploadResult.filename} — {uploadResult.node_count} trackable node(s) found
+            in workflow &quot;{uploadResult.workflow_name}&quot;.
+          </p>
+        )}
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h2 className="text-sm font-semibold text-gray-800">Workflow Snapshots</h2>
         <p className="text-xs text-gray-500 mt-0.5 mb-4">
@@ -497,6 +615,67 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
                 )}
               </p>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+          Changes Since Last Snapshot — {selectedFile || '(no file selected)'}
+        </h3>
+        <p className="text-xs text-gray-400 mb-3">
+          Node-level comparison: latest snapshot vs. current version — only nodes that actually
+          differ are shown, not a raw whole-file diff.
+        </p>
+
+        {nodeDiffLoading && <p className="text-sm text-gray-400">Loading…</p>}
+
+        {!nodeDiffLoading && nodeDiffError && (
+          <p className="text-xs text-gray-400">
+            No snapshot exists yet for this file — take one above to enable comparison.
+          </p>
+        )}
+
+        {!nodeDiffLoading && !nodeDiffError && nodeDiff && (
+          <div>
+            <p className="text-xs text-gray-400 mb-3">
+              Comparing against <span className="font-mono text-gray-600">{nodeDiff.snapshot_short_sha}</span>
+              {' '}({fmtDateTime(nodeDiff.snapshot_date)}) — {nodeDiff.unchanged_count} node(s) unchanged.
+            </p>
+
+            {nodeDiff.changed_nodes.length === 0 ? (
+              <p className="text-xs text-green-600 font-medium">
+                ✓ No changes since the last snapshot.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {nodeDiff.changed_nodes.map(n => (
+                  <div key={n.node_name} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedNode(prev => prev === n.node_name ? null : n.node_name)}
+                      className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 transition text-left"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <NodeDiffStatusBadge status={n.status} />
+                        <NodeTypeBadge type={n.node_type} />
+                        <span className="text-sm text-gray-800 truncate">{n.node_name}</span>
+                      </div>
+                      <svg
+                        className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${expandedNode === n.node_name ? 'rotate-180' : ''}`}
+                        fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {expandedNode === n.node_name && (
+                      <div className="px-4 pb-4">
+                        <DiffViewer diff={n.diff_content} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -314,3 +314,16 @@ def list_workflow_snapshots(file_path: str, limit: int = 20) -> list[dict]:
 def get_compare_url(base_sha: str, head_sha: str) -> str:
     """Return the GitHub web URL for a diff/comparison between two commits."""
     return f"https://github.com/{_repo()}/compare/{base_sha}...{head_sha}"
+
+
+def get_file_content_at_ref(repo_path: str, ref: str) -> bytes:
+    """
+    Fetch raw file content from GitHub at the given ref (branch name, tag, or
+    commit SHA) — used to read a specific past snapshot's actual content, not
+    just its commit metadata (which is all list_workflow_snapshots returns).
+    """
+    url = f"{_GH_API}/repos/{_repo()}/contents/{repo_path}"
+    resp = requests.get(url, headers=_headers(), params={"ref": ref}, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    return base64.b64decode(data["content"])
