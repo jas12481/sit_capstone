@@ -74,6 +74,17 @@ export default function AuditPage() {
   const [explanationSectionOpen, setExplanationSectionOpen] = useState<Record<string, boolean>>({});
   const [fraudSectionOpen, setFraudSectionOpen] = useState<Record<string, boolean>>({});
   const [missingDocsSectionOpen, setMissingDocsSectionOpen] = useState<Record<string, boolean>>({});
+  // Consolidated "AI Insights" trigger — one dropdown per row instead of three
+  // separate always-visible columns. Only one row's menu open at a time.
+  const [insightsMenuOpen, setInsightsMenuOpen] = useState<string | null>(null);
+
+  function viewSection(logId: string, section: 'explanation' | 'missingDocs' | 'fraud') {
+    setInsightsMenuOpen(null);
+    setExpanded(logId);
+    if (section === 'explanation') setExplanationSectionOpen(prev => ({ ...prev, [logId]: true }));
+    if (section === 'missingDocs') setMissingDocsSectionOpen(prev => ({ ...prev, [logId]: true }));
+    if (section === 'fraud') setFraudSectionOpen(prev => ({ ...prev, [logId]: true }));
+  }
 
   // Filter state — all filtering is done client-side
   const [workflowFilter, setWorkflowFilter] = useState('');
@@ -390,9 +401,7 @@ export default function AuditPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Confidence</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Judge Score</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessed</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessment Explanation</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Missing Docs</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fraud Risk</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">AI Insights</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -416,174 +425,145 @@ export default function AuditPage() {
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDateTime(log.assessed_at)}
                     </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-3 relative" onClick={e => e.stopPropagation()}>
                       {!log.claim_id || !log.log_id ? (
                         <span className="text-gray-300">—</span>
-                      ) : explainingLogId === log.log_id ? (
+                      ) : explainingLogId === log.log_id || checkingMissingDocsClaimId === log.claim_id || checkingClaimId === log.claim_id ? (
                         <span className="text-xs text-gray-400 flex items-center gap-1.5">
                           <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
-                          Running Explain_Assessment_Reasoning…
+                          Running…
                         </span>
-                      ) : explanations[log.log_id] ? (
-                        <div>
-                          <button
-                            onClick={() => handleExplain(log.claim_id, log.log_id)}
-                            title="Click to regenerate this explanation"
-                            className="group inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-brand-600"
-                          >
-                            <span className="font-medium">✓ Explained</span>
-                            <svg
-                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
-                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            {justExplainedLogId === log.log_id && (
-                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
-                            )}
-                          </button>
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            Explained {fmtDateTime(explanations[log.log_id].generated_at)}
-                          </p>
-                          {explainErrors[log.log_id] && (
-                            <p className="text-[11px] text-red-600 mt-0.5">
-                              Regenerate failed: {explainErrors[log.log_id]}
-                            </p>
-                          )}
-                        </div>
                       ) : (
-                        <div>
+                        <>
                           <button
-                            onClick={() => handleExplain(log.claim_id, log.log_id)}
-                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
+                            onClick={() => setInsightsMenuOpen(prev => prev === log.log_id ? null : log.log_id)}
+                            className="inline-flex items-center gap-2 border border-gray-200 hover:border-brand-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
                           >
-                            View
+                            AI Insights
+                            <span className="inline-flex gap-1">
+                              <span
+                                title="Explanation"
+                                className={`w-1.5 h-1.5 rounded-full ${explanations[log.log_id] ? 'bg-green-500' : 'bg-gray-200'}`}
+                              />
+                              {log.recommendation === 'REFER_FOR_FURTHER_REVIEW' && (
+                                <span
+                                  title="Missing Documentation"
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    !missingDocsChecks[log.claim_id] ? 'bg-gray-200'
+                                    : missingDocsChecks[log.claim_id].all_requirements_met ? 'bg-green-500'
+                                    : 'bg-orange-500'
+                                  }`}
+                                />
+                              )}
+                              <span
+                                title="Fraud Signals"
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  !fraudChecks[log.claim_id] ? 'bg-gray-200'
+                                  : fraudChecks[log.claim_id].risk_level === 'LOW' ? 'bg-green-500'
+                                  : 'bg-orange-500'
+                                }`}
+                              />
+                            </span>
                           </button>
-                          {explainErrors[log.log_id] && (
-                            <p className="text-[11px] text-red-600 mt-1">
-                              Failed: {explainErrors[log.log_id]}
-                            </p>
+
+                          {insightsMenuOpen === log.log_id && (
+                            <>
+                              {/* Click-outside-to-close backdrop */}
+                              <div className="fixed inset-0 z-10" onClick={() => setInsightsMenuOpen(null)} />
+                              <div className="absolute right-4 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-1.5">
+                                {/* Explanation item */}
+                                <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50">
+                                  <button
+                                    onClick={() => explanations[log.log_id] ? viewSection(log.log_id, 'explanation') : handleExplain(log.claim_id, log.log_id)}
+                                    className="flex-1 text-left"
+                                  >
+                                    <p className="text-xs font-semibold text-gray-800">Assessment Explanation</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                      {explanations[log.log_id]
+                                        ? `Explained ${fmtDateTime(explanations[log.log_id].generated_at)} — click to view`
+                                        : 'Not yet checked — click to run'}
+                                    </p>
+                                    {explainErrors[log.log_id] && (
+                                      <p className="text-[11px] text-red-600 mt-0.5">Failed: {explainErrors[log.log_id]}</p>
+                                    )}
+                                  </button>
+                                  {explanations[log.log_id] && (
+                                    <button
+                                      onClick={() => handleExplain(log.claim_id, log.log_id)}
+                                      title="Re-run"
+                                      className="flex-shrink-0 text-gray-300 hover:text-brand-600 mt-0.5"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Missing Docs item — REFER rows only */}
+                                {log.recommendation === 'REFER_FOR_FURTHER_REVIEW' && (
+                                  <>
+                                    <div className="h-px bg-gray-100 my-1" />
+                                    <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50">
+                                      <button
+                                        onClick={() => missingDocsChecks[log.claim_id] ? viewSection(log.log_id, 'missingDocs') : handleMissingDocsCheck(log.claim_id, log.log_id)}
+                                        className="flex-1 text-left"
+                                      >
+                                        <p className="text-xs font-semibold text-gray-800">Missing Documentation</p>
+                                        <p className="text-[11px] text-gray-400 mt-0.5">
+                                          {missingDocsChecks[log.claim_id]
+                                            ? `Checked ${fmtDateTime(missingDocsChecks[log.claim_id].checked_at)} — click to view`
+                                            : 'Not yet checked — click to run'}
+                                        </p>
+                                        {missingDocsErrors[log.claim_id] && (
+                                          <p className="text-[11px] text-red-600 mt-0.5">Failed: {missingDocsErrors[log.claim_id]}</p>
+                                        )}
+                                      </button>
+                                      {missingDocsChecks[log.claim_id] && (
+                                        <>
+                                          {missingDocsChecks[log.claim_id].all_requirements_met ? (
+                                            <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">Complete</span>
+                                          ) : (
+                                            <span className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-800">
+                                              {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+
+                                {/* Fraud item */}
+                                <div className="h-px bg-gray-100 my-1" />
+                                <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50">
+                                  <button
+                                    onClick={() => fraudChecks[log.claim_id] ? viewSection(log.log_id, 'fraud') : handleFraudCheck(log.claim_id, log.log_id)}
+                                    className="flex-1 text-left"
+                                  >
+                                    <p className="text-xs font-semibold text-gray-800">Fraud / Anomaly Signals</p>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                                      {fraudChecks[log.claim_id]
+                                        ? `Checked ${fmtDateTime(fraudChecks[log.claim_id].checked_at)} — click to view`
+                                        : 'Not yet checked — click to run'}
+                                    </p>
+                                    {fraudErrors[log.claim_id] && (
+                                      <p className="text-[11px] text-red-600 mt-0.5">Failed: {fraudErrors[log.claim_id]}</p>
+                                    )}
+                                  </button>
+                                  {fraudChecks[log.claim_id] && (
+                                    <span className="flex-shrink-0">
+                                      <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </>
                           )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      {!log.claim_id || !log.log_id || log.recommendation !== 'REFER_FOR_FURTHER_REVIEW' ? (
-                        <span className="text-gray-300">—</span>
-                      ) : checkingMissingDocsClaimId === log.claim_id ? (
-                        <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                          Running Missing_Documentation_Advisor…
-                        </span>
-                      ) : missingDocsChecks[log.claim_id] ? (
-                        <div>
-                          <button
-                            onClick={() => handleMissingDocsCheck(log.claim_id, log.log_id)}
-                            title="Click to re-run this check"
-                            className="group inline-flex items-center gap-1.5"
-                          >
-                            {missingDocsChecks[log.claim_id].all_requirements_met ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                                Complete
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-                                {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
-                              </span>
-                            )}
-                            <svg
-                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
-                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            {justCheckedMissingDocsClaimId === log.claim_id && (
-                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
-                            )}
-                          </button>
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            Checked {fmtDateTime(missingDocsChecks[log.claim_id].checked_at)}
-                          </p>
-                          {missingDocsErrors[log.claim_id] && (
-                            <p className="text-[11px] text-red-600 mt-0.5">
-                              Recheck failed: {missingDocsErrors[log.claim_id]}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <button
-                            onClick={() => handleMissingDocsCheck(log.claim_id, log.log_id)}
-                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
-                          >
-                            Check missing docs
-                          </button>
-                          {missingDocsErrors[log.claim_id] && (
-                            <p className="text-[11px] text-red-600 mt-1">
-                              Failed: {missingDocsErrors[log.claim_id]}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      {!log.claim_id ? (
-                        <span className="text-gray-300">—</span>
-                      ) : checkingClaimId === log.claim_id ? (
-                        <span className="text-xs text-gray-400 flex items-center gap-1.5">
-                          <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                          Running Fraud_Anomaly_Risk_Signals…
-                        </span>
-                      ) : fraudChecks[log.claim_id] ? (
-                        <div>
-                          <button
-                            onClick={() => handleFraudCheck(log.claim_id, log.log_id)}
-                            title="Click to re-run this fraud check"
-                            className="group inline-flex items-center gap-1.5"
-                          >
-                            <RiskBadge level={fraudChecks[log.claim_id].risk_level} />
-                            <svg
-                              className="w-3 h-3 text-gray-300 group-hover:text-brand-600 transition-colors"
-                              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            {justCheckedClaimId === log.claim_id && (
-                              <span className="text-xs text-green-600 font-medium">✓ Succeeded</span>
-                            )}
-                          </button>
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            Checked {fmtDateTime(fraudChecks[log.claim_id].checked_at)}
-                          </p>
-                          {fraudErrors[log.claim_id] && (
-                            <p className="text-[11px] text-red-600 mt-0.5">
-                              Recheck failed: {fraudErrors[log.claim_id]}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <button
-                            onClick={() => handleFraudCheck(log.claim_id, log.log_id)}
-                            className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-300 rounded-lg px-2 py-1 transition"
-                          >
-                            Check for fraud signals
-                          </button>
-                          {fraudErrors[log.claim_id] && (
-                            <p className="text-[11px] text-red-600 mt-1">
-                              Failed: {fraudErrors[log.claim_id]}
-                            </p>
-                          )}
-                        </div>
+                        </>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
@@ -597,7 +577,7 @@ export default function AuditPage() {
                   </tr>
                   {expanded === log.log_id && (
                     <tr key={`${log.log_id}-exp`} className="bg-gray-50">
-                      <td colSpan={10} className="px-6 py-4">
+                      <td colSpan={8} className="px-6 py-4">
                         <div className="grid grid-cols-2 gap-6 text-xs">
                           <div className="space-y-2">
                             <h4 className="font-semibold text-gray-700 text-sm">Assessment Details</h4>
