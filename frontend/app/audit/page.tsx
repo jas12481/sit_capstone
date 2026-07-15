@@ -676,6 +676,62 @@ export default function AuditPage() {
                               )}
                             </div>
                           )}
+                          {log.claim_id && log.log_id && missingDocsChecks[log.claim_id] && (
+                            <div className="col-span-2 pt-2 border-t border-gray-200">
+                              <button
+                                onClick={() => setMissingDocsSectionOpen(prev => ({ ...prev, [log.log_id]: !prev[log.log_id] }))}
+                                className="w-full flex items-center justify-between py-1 text-left"
+                              >
+                                <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
+                                  Missing Documentation
+                                  {missingDocsChecks[log.claim_id].all_requirements_met ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                      Complete
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                      {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
+                                    </span>
+                                  )}
+                                </h4>
+                                <svg
+                                  className={`w-4 h-4 text-gray-400 transition-transform ${missingDocsSectionOpen[log.log_id] ? 'rotate-180' : ''}`}
+                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {missingDocsSectionOpen[log.log_id] && (
+                                <div className="space-y-2 mt-2">
+                                  {missingDocsChecks[log.claim_id].all_requirements_met && log.recommendation === 'REFER_FOR_FURTHER_REVIEW' && (
+                                    <p className="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                                      Required document types are present, but the assessment still referred this
+                                      claim for review — document presence doesn&apos;t guarantee the content is
+                                      sufficient to resolve every rule. See Assessment Explanation above for what
+                                      specifically remains unresolved.
+                                    </p>
+                                  )}
+                                  <p>
+                                    <span className="text-gray-500">Submitted documents:</span>{' '}
+                                    {missingDocsChecks[log.claim_id].submitted_documents_summary || '—'}
+                                  </p>
+                                  {missingDocsChecks[log.claim_id].missing_documents?.length > 0 ? (
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {missingDocsChecks[log.claim_id].missing_documents.map((d, i) => (
+                                        <li key={i}>
+                                          <span className="font-medium">{d.document_type}</span>{' '}
+                                          <span className="font-mono text-xs text-gray-400">({d.linked_rule_id})</span>
+                                          {': '}{d.reason}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-gray-400">No missing documents identified.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {log.claim_id && log.log_id && fraudChecks[log.claim_id] && (
                             <div className="col-span-2 pt-2 border-t border-gray-200">
                               <button
@@ -707,54 +763,6 @@ export default function AuditPage() {
                                     </ul>
                                   ) : (
                                     <p className="text-gray-400">No specific flags raised.</p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {log.claim_id && log.log_id && missingDocsChecks[log.claim_id] && (
-                            <div className="col-span-2 pt-2 border-t border-gray-200">
-                              <button
-                                onClick={() => setMissingDocsSectionOpen(prev => ({ ...prev, [log.log_id]: !prev[log.log_id] }))}
-                                className="w-full flex items-center justify-between py-1 text-left"
-                              >
-                                <h4 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
-                                  Missing Documentation
-                                  {missingDocsChecks[log.claim_id].all_requirements_met ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                                      Complete
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-                                      {missingDocsChecks[log.claim_id].missing_documents?.length || 0} missing
-                                    </span>
-                                  )}
-                                </h4>
-                                <svg
-                                  className={`w-4 h-4 text-gray-400 transition-transform ${missingDocsSectionOpen[log.log_id] ? 'rotate-180' : ''}`}
-                                  fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {missingDocsSectionOpen[log.log_id] && (
-                                <div className="space-y-2 mt-2">
-                                  <p>
-                                    <span className="text-gray-500">Submitted documents:</span>{' '}
-                                    {missingDocsChecks[log.claim_id].submitted_documents_summary || '—'}
-                                  </p>
-                                  {missingDocsChecks[log.claim_id].missing_documents?.length > 0 ? (
-                                    <ul className="list-disc list-inside space-y-1">
-                                      {missingDocsChecks[log.claim_id].missing_documents.map((d, i) => (
-                                        <li key={i}>
-                                          <span className="font-medium">{d.document_type}</span>{' '}
-                                          <span className="font-mono text-xs text-gray-400">({d.linked_rule_id})</span>
-                                          {': '}{d.reason}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-gray-400">No missing documents identified.</p>
                                   )}
                                 </div>
                               )}
