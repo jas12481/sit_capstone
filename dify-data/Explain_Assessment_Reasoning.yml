@@ -386,12 +386,20 @@ workflow:
         prompt_template:
         - id: 7a2b3c4d-5e6f-4a7b-9c8d-0e1f2a3b4c5d
           role: system
-          text: You are explaining a completed insurance claim assessment to a claims
+          text: 'You are explaining a completed insurance claim assessment to a claims
             officer or customer. You will be given the final recommendation, confidence
-            level, number of rules passed/failed, and a coverage conclusion. Write
-            a clear, plain-language explanation of why this verdict was reached. Do
-            not change or second-guess the recommendation — your job is only to explain
-            it.
+            level, number of rules passed/failed, coverage conclusion, and LLM-as-Judge
+            quality scores (completeness, consistency, hallucination risk, clarity,
+            overall) on a 1.0-5.0 scale. Write a clear, plain-language explanation
+            of why this verdict was reached. Do not change or second-guess the recommendation
+            — your job is only to explain it.
+
+
+            If you reference the judge quality scores, a HIGHER score is always better/safer
+            for every one of them, including hallucination_risk — e.g. a hallucination_risk
+            score of 4.7/5.0 means very LOW actual hallucination risk, not elevated
+            risk. Never describe a high score on any of these dimensions as a weakness,
+            concern, or a factor supporting escalation/referral.'
         - id: 8b3c4d5e-6f7a-4b8c-ad9e-1f2a3b4c5d6e
           role: user
           text: 'Completed assessment data:
