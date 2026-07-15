@@ -322,8 +322,35 @@ class AssessmentLogCreate(BaseModel):
     rule_checks: Optional[Union[str, List[dict]]] = None
 
 
+CLAIM_STATUS_FROM_RECOMMENDATION = {
+    "APPROVE": "approved",
+    "REJECT": "rejected",
+    "REFER_FOR_FURTHER_REVIEW": "under_review",
+}
+
+
+def _derive_rejection_reason(rule_checks: Optional[list]) -> Optional[str]:
+    """First mandatory-failed rule, formatted as '{rule_name}: {reason}' — the same
+    signal a human would look at first to understand why a claim was rejected."""
+    if not rule_checks:
+        return None
+    for rc in rule_checks:
+        if rc.get("result") == "FAIL" and str(rc.get("is_mandatory")).lower() == "true":
+            name = rc.get("rule_name") or rc.get("rule_id") or "eligibility rule"
+            reason = rc.get("reason") or ""
+            return f"{name}: {reason}" if reason else name
+    return None
+
+
 @app.post("/assessment-logs")
-def create_assessment_log(log: AssessmentLogCreate):
+def create_assessment_log(
+    log: AssessmentLogCreate,
+    skip_status_update: bool = Query(
+        False,
+        description="Skip writing the outcome back to claims.status — used by evaluation/backfill "
+                    "scripts so repeated test runs don't mutate the source dataset.",
+    ),
+):
     data = {k: v for k, v in log.dict().items() if v is not None}
     if isinstance(data.get("rule_checks"), str):
         try:
@@ -335,7 +362,34 @@ def create_assessment_log(log: AssessmentLogCreate):
     response = supabase.table("assessment_logs").insert(data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to write assessment log")
-    return response.data[0]
+    result = response.data[0]
+
+    # Write-back: a freshly-submitted ("pending") claim gets its status finalized by the
+    # outcome of its first real assessment. Claims that already have a decided status
+    # (approved/rejected/under_review) are left untouched — re-assessing one of those is
+    # an audit re-check, not claim intake, and must never silently overwrite the existing
+    # historical record. This also makes the write-back self-limiting: once a pending
+    # claim flips to a decided status, later re-assessments of the same claim (e.g.
+    # repeated manual testing) no longer qualify and can't overwrite it again.
+    claim_id = data.get("claim_id")
+    recommendation = data.get("recommendation")
+    if not skip_status_update and claim_id and recommendation in CLAIM_STATUS_FROM_RECOMMENDATION:
+        try:
+            claim_resp = supabase.table("claims").select("status").eq("claim_id", claim_id).execute()
+            current_status = claim_resp.data[0]["status"] if claim_resp.data else None
+            if current_status == "pending":
+                update = {"status": CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]}
+                if recommendation == "REJECT":
+                    reason = _derive_rejection_reason(data.get("rule_checks"))
+                    if reason:
+                        update["rejection_reason"] = reason
+                supabase.table("claims").update(update).eq("claim_id", claim_id).execute()
+        except Exception as exc:  # noqa: BLE001
+            # Never let the write-back block the assessment log write — that's the core
+            # governance record and must succeed regardless of this side effect.
+            print(f"claims.status write-back failed for {claim_id}: {exc}")
+
+    return result
 
 
 @app.get("/assessment-logs")

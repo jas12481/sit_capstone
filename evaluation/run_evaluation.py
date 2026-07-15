@@ -82,6 +82,45 @@ def _http_get_json(path: str) -> dict:
         return json.load(r)
 
 
+# ── claims.status snapshot/restore (combined strategy only) ────────────────────────────────
+# `write_assessment_log` (inside the real *_Assess_Claim Dify workflows the "combined"
+# strategy calls) now writes a claim's assessment outcome back to claims.status when the
+# claim was "pending" (see mcp_server/main.py's POST /assessment-logs). That's the correct
+# behavior for real usage, but this harness repeatedly re-runs the same fixed 20-claim
+# test_claims.json across strategies/runs for controlled comparison — letting a claim's
+# starting state drift between runs would break that comparison. Rather than teaching the
+# Dify workflows themselves about "is this a test run" (rejected — would expose an internal
+# testing concern as a real input field on a production app, and any manually-triggered Dify
+# run would silently default to mutating real data if the flag were forgotten), this harness
+# snapshots each claim's status before calling combined and restores it after — same direct
+# Supabase pattern already used elsewhere in this project for one-off corrections.
+_supabase_client = None
+
+
+def _supabase():
+    global _supabase_client
+    if _supabase_client is None:
+        from supabase import create_client
+        _supabase_client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+    return _supabase_client
+
+
+def _snapshot_claim_status(claim_id: str) -> dict:
+    claims = _http_get_json(f"/claims?claim_id={claim_id}")
+    if not claims:
+        return {}
+    return {"status": claims[0].get("status"), "rejection_reason": claims[0].get("rejection_reason")}
+
+
+def _restore_claim_status(claim_id: str, snapshot: dict) -> None:
+    if not snapshot:
+        return
+    try:
+        _supabase().table("claims").update(snapshot).eq("claim_id", claim_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [warn] could not restore claims.status for {claim_id}: {exc}")
+
+
 def _call_dify_workflow(api_key: str, claim_id: str, timeout: int = 120) -> dict:
     """
     POST to Dify's workflow API using response_mode: streaming (Server-Sent Events), not
@@ -178,6 +217,7 @@ def run_one(test_case: dict, strategy: str, real_rules_cache: dict, dry_run: boo
     raw_text = ""
     actual_confidence = None
     cited_rule_ids: list[str] = []
+    status_snapshot = _snapshot_claim_status(claim_id) if strategy == "combined" else {}
     try:
         # combined chains ~7 sequential LLM calls (rule check -> policy analysis -> verdict
         # synthesis -> judge -> report formatting -> suggestion context) vs. 1 for the other
@@ -194,6 +234,12 @@ def run_one(test_case: dict, strategy: str, real_rules_cache: dict, dry_run: boo
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as exc:
         actual_rec = "ERROR"
         raw_text = str(exc)
+    finally:
+        # combined calls the real *_Assess_Claim apps, which write the outcome back to
+        # claims.status when the claim started "pending" — restore it so the next run
+        # (this claim, this or another strategy) sees the same starting conditions.
+        if strategy == "combined":
+            _restore_claim_status(claim_id, status_snapshot)
 
     expected_rec = test_case["expected_recommendation"]
     correct = check_recommendation_correct(actual_rec, expected_rec)
