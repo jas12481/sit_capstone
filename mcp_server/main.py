@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime, timezone
 from pathlib import Path
 import concurrent.futures
@@ -314,18 +314,21 @@ class AssessmentLogCreate(BaseModel):
     # Per-rule breakdown (rule_id, result PASS/FAIL/UNKNOWN/NOT_APPLICABLE, reason,
     # evidence_fields) from rule_by_rule_eligibility_check — previously computed on
     # every assessment but discarded after the workflow run, so there was no way to
-    # see WHY a specific claim was referred/rejected beyond aggregate counts. Sent
-    # as a JSON-encoded string (same pattern as Explain's log_json), parsed here.
-    rule_checks: Optional[str] = None
+    # see WHY a specific claim was referred/rejected beyond aggregate counts.
+    # Accepts either a JSON-encoded string or a native array — Dify's HTTP node
+    # sent this as a raw array in practice (confirmed via a live 422 against this
+    # endpoint), not the JSON string its code node's declared output type implied,
+    # so the backend has to tolerate both rather than assume one shape.
+    rule_checks: Optional[Union[str, List[dict]]] = None
 
 
 @app.post("/assessment-logs")
 def create_assessment_log(log: AssessmentLogCreate):
     data = {k: v for k, v in log.dict().items() if v is not None}
-    if "rule_checks" in data:
+    if isinstance(data.get("rule_checks"), str):
         try:
             data["rule_checks"] = json.loads(data["rule_checks"])
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError:
             # Don't let a malformed rule_checks payload block the actual
             # assessment log write — that's the core governance record.
             del data["rule_checks"]
