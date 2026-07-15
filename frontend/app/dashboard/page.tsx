@@ -73,12 +73,24 @@ export default function DashboardPage() {
 
   // ── aggregations ─────────────────────────────────────────────────────────
 
-  const totalAssessments = logs.length;
-  const approveRate = (logs.filter(l => l.recommendation === 'APPROVE').length / totalAssessments * 100).toFixed(0);
-  const avgJudge = toPercent(logs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / totalAssessments);
+  const totalRuns = logs.length;
+  const distinctClaimsAssessed = new Set(logs.map(l => l.claim_id)).size;
+  const approveRate = (logs.filter(l => l.recommendation === 'APPROVE').length / totalRuns * 100).toFixed(0);
+
+  // Trailing window, not all-time — an all-time average stays dominated by however many
+  // hundred old rows already exist, so a prompt/judge redesign (like the grounded-hallucination-
+  // check rework) wouldn't visibly move these cards for a long time. Same "last N" convention
+  // as the trend chart below (last 30), just a wider window since these are single numbers
+  // rather than a line.
+  const RECENT_WINDOW = 50;
+  const recentLogs = [...logs]
+    .filter(l => l.assessed_at)
+    .sort((a, b) => new Date(b.assessed_at).getTime() - new Date(a.assessed_at).getTime())
+    .slice(0, RECENT_WINDOW);
+  const avgJudge = toPercent(recentLogs.reduce((s, l) => s + (l.judge_overall_score ?? 0), 0) / recentLogs.length);
   // Judge rubric scores this dimension "higher = lower risk / safer" (see Life_Assess_Claim.yml's
   // llm_judge node) — invert to show the actual risk percentage (lower = better, as labelled).
-  const avgHallucinationRisk = 100 - toPercent(logs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / totalAssessments);
+  const avgHallucinationRisk = 100 - toPercent(recentLogs.reduce((s, l) => s + (l.judge_hallucination_risk_score ?? 0), 0) / recentLogs.length);
 
   // Recommendation distribution
   const recCounts: Record<string, number> = {};
@@ -199,10 +211,10 @@ export default function DashboardPage() {
 
       {/* KPI row */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Total Assessments" value={totalAssessments} />
+        <StatCard label="Total Assessments" value={distinctClaimsAssessed} sub={`${totalRuns} total runs`} />
         <StatCard label="Approval Rate" value={`${approveRate}%`} />
-        <StatCard label="Avg Judge Score" value={`${avgJudge}%`} sub="overall quality" />
-        <StatCard label="Avg Hallucination Risk" value={`${avgHallucinationRisk}%`} sub="lower = better" />
+        <StatCard label="Avg Judge Score" value={`${avgJudge}%`} sub={`overall quality, last ${recentLogs.length}`} />
+        <StatCard label="Avg Hallucination Risk" value={`${avgHallucinationRisk}%`} sub={`lower = better, last ${recentLogs.length}`} />
       </div>
 
       {/* Charts row 1 */}
@@ -226,7 +238,7 @@ export default function DashboardPage() {
                 ))}
               </Pie>
               <Legend formatter={v => v.replace(/_/g, ' ')} />
-              <Tooltip formatter={(v: number, n) => [`${v} (${((v / totalAssessments) * 100).toFixed(0)}%)`, (n as string).replace(/_/g, ' ')]} />
+              <Tooltip formatter={(v: number, n) => [`${v} (${((v / totalRuns) * 100).toFixed(0)}%)`, (n as string).replace(/_/g, ' ')]} />
             </PieChart>
           </ResponsiveContainer>
         </div>

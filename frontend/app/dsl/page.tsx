@@ -392,6 +392,14 @@ function NodeDiffStatusBadge({ status }: { status: ChangedNode['status'] }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${s}`}>{status}</span>;
 }
 
+// The backend's snapshot endpoints (list/history/diff/take) all key on "dify-data/{name}"
+// strings for continuity with existing GitHub governance-branch commit paths — that's an
+// internal implementation detail, not where the content actually lives (it's the
+// dify-workflows Storage bucket). Strip the prefix for anything shown to a user.
+function displayName(path: string): string {
+  return path.replace(/^dify-data\//, '');
+}
+
 function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
   const [files, setFiles] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
@@ -564,7 +572,8 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h2 className="text-sm font-semibold text-gray-800">Workflow Snapshots</h2>
         <p className="text-xs text-gray-500 mt-0.5 mb-4">
-          Full whole-file version history of every dify-data/*.yml, committed to a dedicated
+          Full whole-file version history of every workflow YAML in the dify-workflows Storage
+          bucket, committed to a dedicated
           <code className="font-mono bg-gray-100 px-1 rounded mx-1">dsl-governance-history</code>
           branch — kept separate from regular app-code commits on main.
         </p>
@@ -577,7 +586,7 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
           >
             {files.length === 0 && <option value="">No workflow files found</option>}
             {files.map(f => (
-              <option key={f} value={f}>{f}</option>
+              <option key={f} value={f}>{displayName(f)}</option>
             ))}
           </select>
           <input
@@ -609,9 +618,9 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
             {takeResult.results.map((r, i) => (
               <p key={i} className="text-xs">
                 {r.status === 'ok' ? (
-                  <span className="text-green-600">✓ {r.file}</span>
+                  <span className="text-green-600">✓ {displayName(r.file)}</span>
                 ) : (
-                  <span className="text-red-600">✗ {r.file}: {r.detail}</span>
+                  <span className="text-red-600">✗ {displayName(r.file)}: {r.detail}</span>
                 )}
               </p>
             ))}
@@ -621,7 +630,7 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
 
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
-          Changes Since Last Snapshot — {selectedFile || '(no file selected)'}
+          Changes Since Last Snapshot — {selectedFile ? displayName(selectedFile) : '(no file selected)'}
         </h3>
         <p className="text-xs text-gray-400 mb-3">
           Node-level comparison: latest snapshot vs. current version — only nodes that actually
@@ -682,7 +691,7 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
 
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
-          History — {selectedFile || '(no file selected)'}
+          History — {selectedFile ? displayName(selectedFile) : '(no file selected)'}
         </h3>
 
         {histLoading && <p className="text-sm text-gray-400">Loading…</p>}
