@@ -258,8 +258,8 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `claim_amount` | NUMERIC | SGD |
 | `approved_amount` | NUMERIC | |
 | `payment_date` | DATE | |
-| `status` | TEXT | pending, approved, rejected, under_review |
-| `rejection_reason` | TEXT | |
+| `status` | TEXT | pending, approved, rejected, under_review. Randomly assigned at data-generation time (`generate_data.py`'s `CLAIM_STATUS_POOL`, weighted ~3:2:1:1 approved:pending:under_review:rejected) — **not** derived from `eligibility_rules`, so it's not ground truth against anything the assessment pipeline computes. **Write-back added 2026-07-16:** a claim's first real assessment while `status == "pending"` finalizes it (APPROVE→approved, REJECT→rejected, REFER_FOR_FURTHER_REVIEW→under_review) — see `POST /assessment-logs` in §10. Already-decided claims are never touched by this — re-assessing one is an audit re-check, not intake, and must never silently overwrite the existing record. This makes the write-back self-limiting: once a claim's status is set (by write-back or by the original random label), later re-assessments of the same claim can't overwrite it again |
+| `rejection_reason` | TEXT | On write-back, derived from the primary failed mandatory rule in the assessment's `rule_checks` (e.g. *"Accidental Death Evidence: required death-claim documents not evidenced as complete"*) |
 | `assigned_officer` | TEXT | |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMP | |
@@ -316,6 +316,8 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `judge_overall_score` | FLOAT | **Redesigned 2026-07-15/16** — genuinely deterministic now: a dedicated `compute_judge_overall` code node computes the simple average of the 4 sub-scores. Previously the judge LLM invented this number itself in the same call as the sub-scores, with no defined relationship to them — a "fake" composite metric with no formula behind it (see §13) |
 | `assessed_at` | TIMESTAMP | |
 | `rule_checks` | JSONB | **Added 2026-07-15** (`ALTER TABLE assessment_logs ADD COLUMN rule_checks jsonb;`) — array of `{rule_id, rule_name, result (PASS/FAIL/UNKNOWN/NOT_APPLICABLE), is_mandatory, reason, evidence_fields[]}`, one entry per eligibility rule evaluated. Closes a real logic gap: `rule_by_rule_eligibility_check` always computed this per-rule reasoning, but it was discarded after `compute_rule_counts` reduced it to just two integers (`mandatory_rules_failed`/`total_rules_passed`) — a claim could land on REFER_FOR_FURTHER_REVIEW with zero visibility into *which* rule caused it or why. Now persisted end-to-end (all 4 `*_Assess_Claim` workflows) and consumed by `Explain_Assessment_Reasoning` to cite specific rules instead of speaking generically. `AssessmentLogCreate.rule_checks` accepts `Union[str, List[dict]]` — Dify's HTTP node sends it as a native JSON array, not a pre-serialized string as originally assumed |
+| `status_cross_check` | TEXT | **Added 2026-07-16** (`ALTER TABLE assessment_logs ADD COLUMN status_cross_check text;` + `status_cross_check_note text;`) — CONSISTENT or MISMATCH, computed only when the assessed claim already had a decided `status` (the complementary case to the write-back above — never both on the same row). Purely observational: computed entirely server-side in `POST /assessment-logs`, after the fact, from data already in the request — no Dify workflow changes needed and none touch the verdict. On MISMATCH, `status_cross_check_note` holds a plain-language reason (e.g. *"recorded status is 'rejected' (reason: Policy was lapsed at time of incident), but AI recommendation is 'APPROVE'"*). Written via a separate, isolated `UPDATE` after the main insert (own try/except) specifically so a missing column on an un-migrated deployment can never break the core assessment-log write |
+| `status_cross_check_note` | TEXT | See above — only set on MISMATCH |
 
 ### `assessment_explanations` *(Explain Assessment Reasoning — added 2026-07-14)*
 | Column | Type | Notes |
@@ -550,6 +552,17 @@ End
   never read by the running system, and must never be edited as if it were current. Doing so once
   (2026-07-16) silently regressed the `rule_checks` persistence fix, because the local copy predated
   it — see §14's gotcha note before ever editing one of these workflow files directly again
+- **Deliberate design boundary (2026-07-16): test/eval-only behavior should never be threaded through
+  as a Dify Start-node input.** First attempt at the `claims.status` write-back opt-out (§10, §7) added
+  `skip_status_update` as an optional Start-node field on all 4 `*_Assess_Claim` workflows — rejected
+  before it shipped. Two problems: it would show up as a real input field on a production app real
+  claims officers interact with, for a concern they have no reason to know about; and it's a flag
+  someone testing manually in Dify's own run panel could easily forget to set, silently defaulting to
+  "mutate real data." The fix that shipped instead keeps the Dify workflows completely untouched — the
+  write-back always fires the same way for everyone, and the one caller that actually needs
+  non-destructive repeat runs (`run_evaluation.py`'s combined strategy) snapshots/restores
+  `claims.status` itself via a direct Supabase call around the Dify request, rather than the workflow
+  needing to know it's being tested
 
 ### Orchestrator Architecture (Test_Orchestrator_1-1.yml — canonical, final working version ✅)
 
@@ -689,7 +702,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/explanations` | POST | Write an assessment explanation, keyed by `log_id` — added 2026-07-14 |
 | `/missing-documentation-checks` | GET | Query missing-documentation checks by `claim_id` — added 2026-07-14 |
 | `/missing-documentation-checks` | POST | Write a missing-documentation check — added 2026-07-14 |
-| `/assessment-logs` | POST | Write assessment result to audit log — `rule_checks` field added 2026-07-15 (`Union[str, List[dict]]`, since Dify sends it as a native array) |
+| `/assessment-logs` | POST | Write assessment result to audit log — `rule_checks` field added 2026-07-15 (`Union[str, List[dict]]`, since Dify sends it as a native array). **2026-07-16:** also finalizes `claims.status` for a claim that was `pending` (write-back), or computes `status_cross_check` for a claim that already had a decided status (observe-only, see §7) — mutually exclusive per request. `?skip_status_update=true` opts a caller out of the write-back only (never the cross-check, which is harmless) — used by `evaluation/run_evaluation.py`'s "combined" strategy, which snapshots/restores `claims.status` around the call instead of relying on any Dify-side flag (deliberately kept out of the Dify workflows themselves — see §9) |
 | `/assessment-logs` | GET | Query audit log (management dashboard); `log_id` filter added 2026-07-14 for Explain's row-specificity fix |
 | `/workflow-nodes` | GET | Stored DSL nodes for a workflow |
 | `/workflow-nodes` | POST | Store node after approval |
@@ -1230,15 +1243,24 @@ of the three, then expands the row to the relevant section. Three visual options
 cluster / expand-in-place pill) were mocked up as a Claude Artifact against real CLM-0802 data before
 building, so Jasbir could compare before committing to one.
 
+**Status cross-check indicator (new 2026-07-16)** — a small amber warning icon next to the verdict
+badge, shown only when `assessment_logs.status_cross_check === 'MISMATCH'` (§7), with the reason as a
+tooltip; the expanded row shows the full note, or a quiet "✓ agrees with recorded status" line for
+CONSISTENT rows. Deliberately not a 4th AI Insights menu item — it's automatic/observational, not an
+on-demand action like the other three, so it doesn't belong in that menu's view/run/recheck pattern.
+
 **3. Management Dashboard** *(business stakeholders)* — recommendation distribution, claims volume by
 domain, LLM-as-Judge score trend (last 30 runs), confidence distribution, **Rule Failure Analysis**
 (new 2026-07-16 — most frequently failed eligibility rules from persisted `rule_checks`, mandatory rules
 in red/non-mandatory in amber, plus a recent-failures feed; captioned with how many assessments have
 rule-level data since coverage only grows from the persistence fix's rollout date forward), **Missing
 Documentation** (new 2026-07-16 — completeness split, most commonly missing document types, claims
-still missing docs), and Fraud/Anomaly Risk Signals (risk level distribution, recent flags, high-risk
-claims needing follow-up — accumulates as claims are checked via the Audit Log, not a full-portfolio
-scan).
+still missing docs), **Status Cross-Check** (new 2026-07-16 — consistent-vs-mismatch split and a list of
+claims where fresh AI judgment disagrees with an already-recorded status, deduped to the latest
+assessment per claim; only covers already-decided claims, since a freshly-`pending` claim's status gets
+finalized by the write-back instead — see §7), and Fraud/Anomaly Risk Signals (risk level distribution,
+recent flags, high-risk claims needing follow-up — accumulates as claims are checked via the Audit Log,
+not a full-portfolio scan).
 
 **KPI cards (fixed 2026-07-16):** "Total Assessments" now shows **distinct claims assessed**, with
 total runs as a sub-label — the raw row count was inflated by heavy repeat dev-testing of the same
@@ -1432,6 +1454,8 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | LLM-as-Judge grounding redesign | ✅ Done | See §13 — judge now grounded in real `claim_record`/`policy_record` with explicit rubric anchors instead of scoring an ungrounded narrative; `judge_overall_score` now a deterministic average via new `compute_judge_overall` code node instead of an LLM-invented number. Verified live across all 4 domains post-redesign. A mid-build mistake (redesign applied on top of a stale `dify-data/` copy, regressing `rule_checks`) was caught and fixed before reaching Dify — see §14's gotcha note |
 | Dashboard — Rule Failure Analysis + Missing Documentation panels | ✅ Done | New sections using the now-persisted `rule_checks` and `missing_documentation_checks` data (§16); KPI cards fixed to show distinct-claims count + trailing-50-run averages instead of misleading all-time/raw-row numbers |
 | DSL page — `dify-data/` label cleanup | ✅ Done | Workflow Snapshots tab no longer shows the `dify-data/` prefix anywhere in the UI (§14) — cosmetic only, underlying API contract unchanged |
+| `claims.status` write-back + status cross-check | ✅ Done | `POST /assessment-logs` finalizes a `pending` claim's status on its first real assessment (§7, §10), and computes an observe-only `status_cross_check` for already-decided claims — mutually exclusive per request, neither ever influences the verdict. Dify workflows deliberately left untouched (§9's design-boundary note) — `run_evaluation.py`'s combined strategy snapshots/restores `claims.status` itself instead of relying on a Dify-side flag. New Dashboard "Status Cross-Check" panel + Audit Log mismatch warning icon (§16). Committed `86310c8` (write-back); cross-check not yet committed as of this writing |
+| **Deploy gap:** write-back/cross-check not yet live on Render | 🔲 Open | Same pattern as the Storage/snapshot deploy gap above — local MCP server only until the latest `main` is deployed |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
 
@@ -1446,7 +1470,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Done (2026-07-13)** | `claims_history`/`customer_history` orchestrator intents (2 new shared sub-workflows, 6-intent orchestrator, 3 real routing-bug fixes); `/claims`/`/policies` 404-on-empty backend fix, deployed and confirmed live; stale `Test_Orchestrator-1.yml` deleted, single canonical orchestrator file — full build scope now considered complete |
 | **Done (2026-07-13/14)** | Whole-file workflow version history (`dsl-governance-history` GitHub branch); migrated DSL "current version" source of truth from local disk to a new private Supabase Storage bucket (`dify-workflows`), `dify-data/` kept as a frozen historical artifact only; node-level snapshot-vs-current comparison; workflow upload page (Storage-backed, no manual file placement); 12-item governance review pass (5+4 approved, 7 rejected, real GitHub commits). Committed `7982d70` + `983b561`. Not yet deployed to Render — local-only until env vars mirrored |
 | **Done (2026-07-14/15)** | `Explain_Assessment_Reasoning`/`Missing_Documentation_Advisor` integrated into the Audit Log frontend (`assessment_explanations`/`missing_documentation_checks` tables, 4 new MCP endpoints); fixed Explain's row-specificity bug (`log_id` threading) and a hallucination-risk-score interpretation bug; fixed a real Audit Log row-expansion bug (`log.id` → `log.log_id`); closed the `rule_checks` persistence logic gap across all 4 `*_Assess_Claim` workflows; consolidated 3 separate Audit Log columns into one "AI Insights" menu |
-| **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry) |
+| **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry); `claims.status` write-back for pending claims + observe-only status cross-check for already-decided claims, both computed server-side with the Dify workflows deliberately left untouched (§7, §9, §10); new Dashboard "Status Cross-Check" panel (§16) |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 

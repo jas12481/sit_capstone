@@ -174,6 +174,65 @@ export default function DashboardPage() {
     .map(([name, value]) => ({ name, value }));
   const claimsMissingDocs = latestMissingDocsChecks.filter(c => !c.all_requirements_met);
 
+  // Status Cross-Check — observe-only: does a claim's fresh, independent recommendation
+  // agree with the status already recorded on it? Only computed for already-decided claims
+  // (a freshly-pending claim's status gets finalized by the write-back instead, so those
+  // rows have neither field set — see mcp_server/main.py POST /assessment-logs). Never
+  // influences the verdict; this is purely a governance signal for humans to look at.
+  const logsWithCrossCheck = logs.filter(l => l.status_cross_check === 'CONSISTENT' || l.status_cross_check === 'MISMATCH');
+  const crossCheckMismatchCount = logsWithCrossCheck.filter(l => l.status_cross_check === 'MISMATCH').length;
+  const crossCheckConsistentCount = logsWithCrossCheck.length - crossCheckMismatchCount;
+  const crossCheckMismatchRate = logsWithCrossCheck.length > 0
+    ? Math.round((crossCheckMismatchCount / logsWithCrossCheck.length) * 100)
+    : 0;
+  const crossCheckDistribution = [
+    { name: 'Consistent', value: crossCheckConsistentCount },
+    { name: 'Mismatch', value: crossCheckMismatchCount },
+  ];
+  // Dedupe to latest per claim — a repeatedly-tested claim shouldn't crowd out distinct
+  // mismatched claims in the list below.
+  const latestCrossCheckByClaim = (() => {
+    const byClaimId: Record<string, AssessmentLog> = {};
+    for (const l of [...logsWithCrossCheck].sort((a, b) => new Date(b.assessed_at).getTime() - new Date(a.assessed_at).getTime())) {
+      if (!byClaimId[l.claim_id]) byClaimId[l.claim_id] = l;
+    }
+    return Object.values(byClaimId);
+  })();
+  const mismatchedClaims = latestCrossCheckByClaim.filter(l => l.status_cross_check === 'MISMATCH');
+
+  // Repeat-Assessment Consistency — same claim, same prompt_version: do repeated runs
+  // (each identified by its own log_id) agree on a recommendation? Only comparing within
+  // the same prompt_version matters — otherwise a disagreement might just mean the prompt
+  // changed between runs, not that the AI is unreliable.
+  const repeatGroups: Record<string, AssessmentLog[]> = {};
+  logs.forEach(l => {
+    if (!l.claim_id || !l.prompt_version) return;
+    const key = `${l.claim_id}::${l.prompt_version}`;
+    (repeatGroups[key] ||= []).push(l);
+  });
+  const groupsWithRepeats = Object.values(repeatGroups).filter(g => g.length > 1);
+  const inconsistentGroups = groupsWithRepeats
+    .filter(g => new Set(g.map(l => l.recommendation)).size > 1)
+    .sort((a, b) => b.length - a.length);
+  const consistentGroupCount = groupsWithRepeats.length - inconsistentGroups.length;
+  const repeatConsistencyRate = groupsWithRepeats.length > 0
+    ? Math.round((consistentGroupCount / groupsWithRepeats.length) * 100)
+    : 0;
+  const repeatDistribution = [
+    { name: 'Consistent', value: consistentGroupCount },
+    { name: 'Inconsistent', value: inconsistentGroups.length },
+  ];
+  const inconsistentGroupSummaries = inconsistentGroups.slice(0, 8).map(g => {
+    const counts: Record<string, number> = {};
+    g.forEach(l => { counts[l.recommendation] = (counts[l.recommendation] || 0) + 1; });
+    return {
+      claim_id: g[0].claim_id,
+      prompt_version: g[0].prompt_version,
+      runs: g.length,
+      breakdown: Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([rec, n]) => `${rec} ×${n}`).join(', '),
+    };
+  });
+
   // Fraud/Anomaly Risk Signals — aggregated from whatever's been checked so
   // far via the Audit Log (this app is on-demand, not a full-portfolio scan,
   // so this grows as claims officers check individual claims). Dedupe to one
@@ -414,6 +473,118 @@ export default function DashboardPage() {
               </ul>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Status Cross-Check — grows as already-decided claims get (re-)assessed; observe-only */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mt-2">Status Cross-Check</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Based on {logsWithCrossCheck.length} assessment{logsWithCrossCheck.length === 1 ? '' : 's'} of
+          claims that already had a recorded status — does fresh, independent AI judgment agree with
+          what&apos;s already on record? Observe-only: never changes a verdict or overwrites the claim.
+        </p>
+      </div>
+      {logsWithCrossCheck.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center py-10">
+          No cross-checks recorded yet — this only applies to claims that already had a decided status
+          when assessed.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Consistent vs. Mismatch</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={crossCheckDistribution} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip formatter={(v: number) => [`${v} (${((v / logsWithCrossCheck.length) * 100).toFixed(0)}%)`, '']} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  <Cell fill="#22c55e" />
+                  <Cell fill="#f59e0b" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="text-xs text-gray-400 mt-2">{crossCheckMismatchRate}% mismatch rate across cross-checked assessments.</p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Claims With a Mismatch</h2>
+            {mismatchedClaims.length > 0 ? (
+              <ul className="divide-y divide-gray-100 text-sm max-h-[220px] overflow-y-auto">
+                {mismatchedClaims.map(l => (
+                  <li key={l.log_id} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-500">{l.claim_id}</span>
+                      <span className="text-xs text-amber-700 bg-amber-50 rounded-full px-2 py-0.5">mismatch</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{l.status_cross_check_note}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-400 text-center py-16">No mismatches — every cross-checked assessment agrees with its recorded status.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Repeat-Assessment Consistency — mostly a testing/QA signal, since a real claim is
+          typically only assessed once; grows whenever the same claim gets assessed more
+          than once under the same prompt_version */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mt-2">Repeat-Assessment Consistency</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {groupsWithRepeats.length} claim{groupsWithRepeats.length === 1 ? '' : 's'} assessed more than
+          once under the same prompt version — do repeated runs agree? Caveat: <code className="font-mono bg-gray-100 px-1 rounded">prompt_version</code> is
+          currently a static label per workflow, not bumped when the underlying prompt actually changes
+          — so some &quot;inconsistent&quot; groups here may reflect real development changes between
+          runs rather than LLM flakiness on an unchanged system.
+        </p>
+      </div>
+      {groupsWithRepeats.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center py-10">
+          No claim has been assessed more than once under the same prompt version yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Consistent vs. Inconsistent</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={repeatDistribution} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip formatter={(v: number) => [`${v} (${((v / groupsWithRepeats.length) * 100).toFixed(0)}%)`, '']} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  <Cell fill="#22c55e" />
+                  <Cell fill="#ef4444" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="text-xs text-gray-400 mt-2">{repeatConsistencyRate}% of repeat-tested claims got the same recommendation every time.</p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Claims With Inconsistent Runs</h2>
+            {inconsistentGroupSummaries.length > 0 ? (
+              <ul className="divide-y divide-gray-100 text-sm max-h-[220px] overflow-y-auto">
+                {inconsistentGroupSummaries.map((g, i) => (
+                  <li key={i} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-500">{g.claim_id}</span>
+                      <span className="text-xs text-red-700 bg-red-50 rounded-full px-2 py-0.5">{g.runs} runs</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{g.breakdown}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{g.prompt_version}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-400 text-center py-16">Every repeat-tested claim got a consistent recommendation.</div>
+            )}
+          </div>
         </div>
       )}
 

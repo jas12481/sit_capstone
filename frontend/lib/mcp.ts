@@ -61,6 +61,13 @@ export type AssessmentLog = {
   judge_overall_score: number;
   assessed_at: string;
   rule_checks?: RuleCheck[];
+  // Observe-only: does this claim's fresh, independent recommendation agree with the
+  // status already recorded on it? Only computed for already-decided claims (audit
+  // re-check) — a freshly-pending claim's status gets finalized by the write-back
+  // instead (see mcp_server/main.py POST /assessment-logs), so those rows have neither
+  // field set. Never influences the verdict itself — purely observational.
+  status_cross_check?: 'CONSISTENT' | 'MISMATCH' | null;
+  status_cross_check_note?: string | null;
 };
 
 export function getAssessmentLogs(filters?: {

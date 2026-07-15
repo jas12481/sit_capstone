@@ -25,6 +25,27 @@ function toPercent(score: number): number {
   return Math.min(100, Math.round(score));
 }
 
+/**
+ * Missing Documentation is relevant for REFER rows (always — assessment couldn't be
+ * completed) and, since 2026-07-16, for REJECT rows where the primary failed mandatory
+ * rule's evidence pointed at claim_documents rather than claim_record/policy_record — a
+ * deterministic signal that the rejection was document-related, not a coverage/eligibility
+ * finding the Advisor has nothing to say about. Missing documentation is a real reason a
+ * claim gets rejected, not just referred, so REJECT rows shouldn't be blanket-excluded —
+ * but the Advisor's own prompt is framed around "what's still needed," which only makes
+ * sense when the rejection actually turned on documentation, hence the rule_checks check
+ * rather than showing it on every REJECT row unconditionally.
+ */
+function isMissingDocsRelevant(log: AssessmentLog): boolean {
+  if (log.recommendation === 'REFER_FOR_FURTHER_REVIEW') return true;
+  if (log.recommendation !== 'REJECT' || !log.rule_checks) return false;
+  return log.rule_checks.some(rc =>
+    rc.result === 'FAIL' &&
+    String(rc.is_mandatory) === 'true' &&
+    (rc.evidence_fields || []).some(f => f.startsWith('claim_documents'))
+  );
+}
+
 function ScoreBadge({ score }: { score: number }) {
   const pct = toPercent(score);
   const colour =
@@ -184,9 +205,9 @@ export default function AuditPage() {
 
   // Missing Documentation — keyed by claim_id, like Fraud (reflects the
   // claim's current state, not tied to one specific assessment_logs row).
-  // Scoped to REFER_FOR_FURTHER_REVIEW rows only in the UI — see the
-  // workflow's own prompt: it determines what's "still required to complete
-  // assessment," which only applies when assessment couldn't be completed.
+  // Shown for REFER rows always, and REJECT rows scoped to document-related failures
+  // (see isMissingDocsRelevant, added 2026-07-16) — missing documentation is a real
+  // reason a claim gets rejected, not just referred.
   const [missingDocsChecks, setMissingDocsChecks] = useState<Record<string, MissingDocumentationCheck>>({});
   const [checkingMissingDocsClaimId, setCheckingMissingDocsClaimId] = useState<string | null>(null);
   const [missingDocsErrors, setMissingDocsErrors] = useState<Record<string, string>>({});
@@ -415,7 +436,18 @@ export default function AuditPage() {
                   >
                     <td className="px-4 py-3 font-mono text-xs text-gray-700">{log.claim_id || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{log.workflow_type}</td>
-                    <td className="px-4 py-3"><RecommendationBadge rec={log.recommendation} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <RecommendationBadge rec={log.recommendation} />
+                        {log.status_cross_check === 'MISMATCH' && (
+                          <span title={log.status_cross_check_note || 'Disagrees with the claim\'s recorded status'}>
+                            <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.598c.75 1.334-.213 2.986-1.742 2.986H3.48c-1.53 0-2.493-1.652-1.743-2.986L8.257 3.1zM11 14a1 1 0 11-2 0 1 1 0 012 0zm-.25-6.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 capitalize text-gray-600">{log.confidence_level || '—'}</td>
                     <td className="px-4 py-3">
                       {log.judge_overall_score != null
@@ -448,7 +480,7 @@ export default function AuditPage() {
                                 title="Explanation"
                                 className={`w-1.5 h-1.5 rounded-full ${explanations[log.log_id] ? 'bg-green-500' : 'bg-gray-200'}`}
                               />
-                              {log.recommendation === 'REFER_FOR_FURTHER_REVIEW' && (
+                              {isMissingDocsRelevant(log) && (
                                 <span
                                   title="Missing Documentation"
                                   className={`w-1.5 h-1.5 rounded-full ${
@@ -504,7 +536,7 @@ export default function AuditPage() {
                                 </div>
 
                                 {/* Missing Docs item — REFER rows only */}
-                                {log.recommendation === 'REFER_FOR_FURTHER_REVIEW' && (
+                                {isMissingDocsRelevant(log) && (
                                   <>
                                     <div className="h-px bg-gray-100 my-1" />
                                     <div className="flex items-start justify-between gap-2 px-2.5 py-2 rounded-lg hover:bg-gray-50">
@@ -586,6 +618,14 @@ export default function AuditPage() {
                             <p><span className="text-gray-500">Coverage:</span> {log.coverage_conclusion || '—'}</p>
                             <p><span className="text-gray-500">Model:</span> {log.model_version || '—'}</p>
                             <p><span className="text-gray-500">Prompt version:</span> {log.prompt_version || '—'}</p>
+                            {log.status_cross_check === 'MISMATCH' && (
+                              <p className="text-amber-700 bg-amber-50 rounded-md px-2 py-1.5 mt-1">
+                                <span className="font-semibold">⚠ Status cross-check:</span> {log.status_cross_check_note}
+                              </p>
+                            )}
+                            {log.status_cross_check === 'CONSISTENT' && (
+                              <p className="text-gray-400">Status cross-check: ✓ agrees with recorded status</p>
+                            )}
                           </div>
                           <div className="space-y-2">
                             <h4 className="font-semibold text-gray-700 text-sm">LLM-as-Judge Scores</h4>

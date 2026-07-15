@@ -364,30 +364,56 @@ def create_assessment_log(
         raise HTTPException(status_code=500, detail="Failed to write assessment log")
     result = response.data[0]
 
-    # Write-back: a freshly-submitted ("pending") claim gets its status finalized by the
-    # outcome of its first real assessment. Claims that already have a decided status
-    # (approved/rejected/under_review) are left untouched — re-assessing one of those is
-    # an audit re-check, not claim intake, and must never silently overwrite the existing
-    # historical record. This also makes the write-back self-limiting: once a pending
-    # claim flips to a decided status, later re-assessments of the same claim (e.g.
-    # repeated manual testing) no longer qualify and can't overwrite it again.
+    # Write-back (pending claims) / status cross-check (already-decided claims) — mutually
+    # exclusive by construction, matching "claim intake" vs. "audit re-check" semantics.
+    # A freshly-submitted ("pending") claim gets its status finalized by the outcome of its
+    # first real assessment. A claim that already has a decided status is left untouched
+    # (re-assessing one of those must never silently overwrite the existing historical
+    # record) — instead, this records whether the fresh, independent assessment agrees with
+    # what's already on record, purely observational, with zero influence on the verdict
+    # itself (computed entirely after the fact, from data already sent to this endpoint).
     claim_id = data.get("claim_id")
     recommendation = data.get("recommendation")
-    if not skip_status_update and claim_id and recommendation in CLAIM_STATUS_FROM_RECOMMENDATION:
+    log_id = result.get("log_id")
+    if claim_id and recommendation in CLAIM_STATUS_FROM_RECOMMENDATION:
         try:
-            claim_resp = supabase.table("claims").select("status").eq("claim_id", claim_id).execute()
+            claim_resp = supabase.table("claims").select("status,rejection_reason").eq("claim_id", claim_id).execute()
             current_status = claim_resp.data[0]["status"] if claim_resp.data else None
-            if current_status == "pending":
+            current_rejection_reason = claim_resp.data[0].get("rejection_reason") if claim_resp.data else None
+        except Exception as exc:  # noqa: BLE001
+            print(f"could not read claims.status for {claim_id}: {exc}")
+            current_status = None
+            current_rejection_reason = None
+
+        if not skip_status_update and current_status == "pending":
+            try:
                 update = {"status": CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]}
                 if recommendation == "REJECT":
                     reason = _derive_rejection_reason(data.get("rule_checks"))
                     if reason:
                         update["rejection_reason"] = reason
                 supabase.table("claims").update(update).eq("claim_id", claim_id).execute()
-        except Exception as exc:  # noqa: BLE001
-            # Never let the write-back block the assessment log write — that's the core
-            # governance record and must succeed regardless of this side effect.
-            print(f"claims.status write-back failed for {claim_id}: {exc}")
+            except Exception as exc:  # noqa: BLE001
+                # Never let the write-back block the assessment log write — that's the
+                # core governance record and must succeed regardless of this side effect.
+                print(f"claims.status write-back failed for {claim_id}: {exc}")
+        elif current_status and current_status != "pending" and log_id:
+            expected_status = CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]
+            cross_check_update = {"status_cross_check": "CONSISTENT" if expected_status == current_status else "MISMATCH"}
+            if cross_check_update["status_cross_check"] == "MISMATCH":
+                note = f"recorded status is '{current_status}'"
+                if current_rejection_reason:
+                    note += f" (reason: {current_rejection_reason})"
+                note += f", but AI recommendation is '{recommendation}'"
+                cross_check_update["status_cross_check_note"] = note
+            try:
+                # Separate update, not part of the main insert above — status_cross_check
+                # is a new column that may not exist yet on a given deployment (see
+                # PROJECT_CONTEXT.md's ALTER TABLE note); isolating it here means a missing
+                # column only drops this observational field, never the assessment log itself.
+                supabase.table("assessment_logs").update(cross_check_update).eq("log_id", log_id).execute()
+            except Exception as exc:  # noqa: BLE001
+                print(f"status_cross_check update failed for log {log_id}: {exc}")
 
     return result
 
