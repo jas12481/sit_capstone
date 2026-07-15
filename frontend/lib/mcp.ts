@@ -33,6 +33,15 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 // ── Assessment Logs ──────────────────────────────────────────────────────────
 
+export type RuleCheck = {
+  rule_id: string;
+  rule_name: string;
+  result: 'PASS' | 'FAIL' | 'UNKNOWN' | 'NOT_APPLICABLE';
+  is_mandatory: string | boolean;
+  reason: string;
+  evidence_fields?: string[];
+};
+
 export type AssessmentLog = {
   log_id: string;
   claim_id: string;
@@ -51,6 +60,7 @@ export type AssessmentLog = {
   judge_clarity_score: number;
   judge_overall_score: number;
   assessed_at: string;
+  rule_checks?: RuleCheck[];
 };
 
 export function getAssessmentLogs(filters?: {

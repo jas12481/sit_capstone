@@ -5,7 +5,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid,
 } from 'recharts';
-import { getAssessmentLogs, getFraudRiskChecks, type AssessmentLog, type FraudRiskCheck } from '@/lib/mcp';
+import {
+  getAssessmentLogs, getFraudRiskChecks, getMissingDocumentationChecks,
+  type AssessmentLog, type FraudRiskCheck, type MissingDocumentationCheck,
+} from '@/lib/mcp';
 
 function toPercent(score: number): number {
   if (score <= 1) return Math.round(score * 100);
@@ -43,6 +46,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 export default function DashboardPage() {
   const [logs, setLogs] = useState<AssessmentLog[]>([]);
   const [fraudChecks, setFraudChecks] = useState<FraudRiskCheck[]>([]);
+  const [missingDocsChecks, setMissingDocsChecks] = useState<MissingDocumentationCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -54,6 +58,9 @@ export default function DashboardPage() {
     getFraudRiskChecks({ limit: 500 })
       .then(setFraudChecks)
       .catch(() => {}); // non-critical — Risk Signals section just shows empty state
+    getMissingDocumentationChecks({ limit: 500 })
+      .then(setMissingDocsChecks)
+      .catch(() => {}); // non-critical — Missing Documentation section just shows empty state
   }, []);
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
@@ -99,6 +106,61 @@ export default function DashboardPage() {
   const confCounts: Record<string, number> = {};
   logs.forEach(l => { if (l.confidence_level) confCounts[l.confidence_level] = (confCounts[l.confidence_level] || 0) + 1; });
   const confData = Object.entries(confCounts).map(([name, value]) => ({ name, value }));
+
+  // Rule Failure Analysis — aggregated from rule_checks, persisted on assessment_logs
+  // only since the per-rule reasoning gap was fixed, so this covers a growing subset
+  // of runs (not the full portfolio) — surfaced via the coverage note in the UI below.
+  const logsWithRuleChecks = logs.filter(l => l.rule_checks && l.rule_checks.length > 0);
+  const ruleFailStats = (() => {
+    const byRule: Record<string, { rule_id: string; rule_name: string; count: number; mandatoryCount: number }> = {};
+    for (const l of logsWithRuleChecks) {
+      for (const rc of l.rule_checks || []) {
+        if (rc.result !== 'FAIL') continue;
+        if (!byRule[rc.rule_id]) byRule[rc.rule_id] = { rule_id: rc.rule_id, rule_name: rc.rule_name, count: 0, mandatoryCount: 0 };
+        byRule[rc.rule_id].count += 1;
+        if (String(rc.is_mandatory) === 'true') byRule[rc.rule_id].mandatoryCount += 1;
+      }
+    }
+    return Object.values(byRule).sort((a, b) => b.count - a.count);
+  })();
+  const topFailedRules = ruleFailStats.slice(0, 8).map(r => ({
+    name: r.rule_id,
+    fullName: r.rule_name,
+    value: r.count,
+    mandatory: r.mandatoryCount > 0,
+  }));
+  const recentRuleFailures = [...logsWithRuleChecks]
+    .sort((a, b) => new Date(b.assessed_at).getTime() - new Date(a.assessed_at).getTime())
+    .flatMap(l => (l.rule_checks || [])
+      .filter(rc => rc.result === 'FAIL')
+      .map(rc => ({ claim_id: l.claim_id, ...rc })))
+    .slice(0, 8);
+
+  // Missing Documentation — aggregated from whatever's been checked so far via the
+  // Audit Log (on-demand, scoped to REFER_FOR_FURTHER_REVIEW rows there), same
+  // accumulates-over-time pattern as Fraud checks below. Dedupe to latest per claim.
+  const latestMissingDocsChecks = (() => {
+    const byClaimId: Record<string, MissingDocumentationCheck> = {};
+    for (const c of [...missingDocsChecks].sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())) {
+      if (!byClaimId[c.claim_id]) byClaimId[c.claim_id] = c;
+    }
+    return Object.values(byClaimId);
+  })();
+  const docCompletionData = [
+    { name: 'Complete', value: latestMissingDocsChecks.filter(c => c.all_requirements_met).length },
+    { name: 'Missing Docs', value: latestMissingDocsChecks.filter(c => !c.all_requirements_met).length },
+  ];
+  const missingDocTypeCounts: Record<string, number> = {};
+  latestMissingDocsChecks.forEach(c => {
+    (c.missing_documents || []).forEach(d => {
+      missingDocTypeCounts[d.document_type] = (missingDocTypeCounts[d.document_type] || 0) + 1;
+    });
+  });
+  const missingDocTypeData = Object.entries(missingDocTypeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name, value]) => ({ name, value }));
+  const claimsMissingDocs = latestMissingDocsChecks.filter(c => !c.all_requirements_met);
 
   // Fraud/Anomaly Risk Signals — aggregated from whatever's been checked so
   // far via the Audit Log (this app is on-demand, not a full-portfolio scan,
@@ -219,6 +281,127 @@ export default function DashboardPage() {
               <Bar dataKey="value" fill="#3b5bdb" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Rule Failure Analysis — accumulates as fresh assessments run (rule_checks
+          persistence only covers runs after the per-rule reasoning gap was fixed) */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mt-2">Rule Failure Analysis</h2>
+        <p className="text-xs text-gray-400 mt-0.5">
+          Based on {logsWithRuleChecks.length} assessment{logsWithRuleChecks.length === 1 ? '' : 's'} with rule-level
+          data recorded — coverage grows as new assessments run.
+        </p>
+      </div>
+      {topFailedRules.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center py-10">
+          No rule failures recorded yet in assessments with rule-level data.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Most Frequently Failed Rules</h2>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={topFailedRules} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <XAxis type="number" tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={80} />
+                <Tooltip formatter={(v: number, _n, p) => [`${v} fail(s)`, p.payload.fullName]} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  {topFailedRules.map((r, i) => (
+                    <Cell key={i} fill={r.mandatory ? '#ef4444' : '#f59e0b'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="text-xs text-gray-400 mt-2">Red = mandatory rule, amber = non-mandatory.</p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Recent Rule Failures</h2>
+            {recentRuleFailures.length > 0 ? (
+              <ul className="divide-y divide-gray-100 text-sm max-h-[220px] overflow-y-auto">
+                {recentRuleFailures.map((f, i) => (
+                  <li key={i} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-gray-500">{f.claim_id}</span>
+                      <span className="text-xs font-semibold text-gray-700">{f.rule_name}</span>
+                      {String(f.is_mandatory) === 'true' && (
+                        <span className="text-[10px] text-red-700 bg-red-50 rounded-full px-1.5 py-0.5">mandatory</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">{f.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-400 text-center py-16">No rule failures to show.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Missing Documentation — accumulates as REFER claims are checked via the Audit Log */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900 mt-2">Missing Documentation</h2>
+      </div>
+      {latestMissingDocsChecks.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 text-sm text-gray-400 text-center py-10">
+          No claims checked for missing documentation yet. Use the &quot;Check missing documentation&quot; action in the Audit Log.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Documentation Completeness</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={docCompletionData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  <Cell fill="#22c55e" />
+                  <Cell fill="#f97316" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">Most Commonly Missing Document Types</h2>
+            {missingDocTypeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={missingDocTypeData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <XAxis type="number" tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={110} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#f97316" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-sm text-gray-400 text-center py-16">No missing documents recorded — all checked claims are complete.</div>
+            )}
+          </div>
+
+          {claimsMissingDocs.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl p-5 col-span-2">
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">Claims With Missing Documentation</h2>
+              <ul className="divide-y divide-gray-100 text-sm">
+                {claimsMissingDocs.map(c => (
+                  <li key={c.id} className="py-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="font-mono text-xs text-gray-700">{c.claim_id}</span>
+                      <span className="text-xs text-orange-700 bg-orange-50 rounded-full px-2 py-0.5 whitespace-nowrap">
+                        {c.missing_documents.length} missing
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {c.missing_documents.map(d => d.document_type).join(', ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
