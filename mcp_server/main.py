@@ -6,6 +6,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from pathlib import Path
 import concurrent.futures
+import json
 import os
 import sys
 
@@ -310,11 +311,24 @@ class AssessmentLogCreate(BaseModel):
     judge_hallucination_risk_score: Optional[float] = None
     judge_clarity_score: Optional[float] = None
     judge_overall_score: Optional[float] = None
+    # Per-rule breakdown (rule_id, result PASS/FAIL/UNKNOWN/NOT_APPLICABLE, reason,
+    # evidence_fields) from rule_by_rule_eligibility_check — previously computed on
+    # every assessment but discarded after the workflow run, so there was no way to
+    # see WHY a specific claim was referred/rejected beyond aggregate counts. Sent
+    # as a JSON-encoded string (same pattern as Explain's log_json), parsed here.
+    rule_checks: Optional[str] = None
 
 
 @app.post("/assessment-logs")
 def create_assessment_log(log: AssessmentLogCreate):
     data = {k: v for k, v in log.dict().items() if v is not None}
+    if "rule_checks" in data:
+        try:
+            data["rule_checks"] = json.loads(data["rule_checks"])
+        except (json.JSONDecodeError, TypeError):
+            # Don't let a malformed rule_checks payload block the actual
+            # assessment log write — that's the core governance record.
+            del data["rule_checks"]
     response = supabase.table("assessment_logs").insert(data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to write assessment log")
