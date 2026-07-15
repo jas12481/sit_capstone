@@ -313,8 +313,48 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `judge_consistency_score` | FLOAT | 0-1 |
 | `judge_hallucination_risk_score` | FLOAT | 0-1 (1 = no hallucination) |
 | `judge_clarity_score` | FLOAT | 0-1 |
-| `judge_overall_score` | FLOAT | Average of four |
+| `judge_overall_score` | FLOAT | **Redesigned 2026-07-15/16** — genuinely deterministic now: a dedicated `compute_judge_overall` code node computes the simple average of the 4 sub-scores. Previously the judge LLM invented this number itself in the same call as the sub-scores, with no defined relationship to them — a "fake" composite metric with no formula behind it (see §13) |
 | `assessed_at` | TIMESTAMP | |
+| `rule_checks` | JSONB | **Added 2026-07-15** (`ALTER TABLE assessment_logs ADD COLUMN rule_checks jsonb;`) — array of `{rule_id, rule_name, result (PASS/FAIL/UNKNOWN/NOT_APPLICABLE), is_mandatory, reason, evidence_fields[]}`, one entry per eligibility rule evaluated. Closes a real logic gap: `rule_by_rule_eligibility_check` always computed this per-rule reasoning, but it was discarded after `compute_rule_counts` reduced it to just two integers (`mandatory_rules_failed`/`total_rules_passed`) — a claim could land on REFER_FOR_FURTHER_REVIEW with zero visibility into *which* rule caused it or why. Now persisted end-to-end (all 4 `*_Assess_Claim` workflows) and consumed by `Explain_Assessment_Reasoning` to cite specific rules instead of speaking generically. `AssessmentLogCreate.rule_checks` accepts `Union[str, List[dict]]` — Dify's HTTP node sends it as a native JSON array, not a pre-serialized string as originally assumed |
+
+### `assessment_explanations` *(Explain Assessment Reasoning — added 2026-07-14)*
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `log_id` | TEXT FK | → assessment_logs.log_id — **not** claim_id-keyed like fraud/missing-docs below, because one claim can have multiple assessment_logs rows and an explanation is tied to one specific verdict, not the claim in general |
+| `claim_id` | TEXT | Denormalised, for lookup convenience |
+| `explanation_text` | TEXT | Plain-language explanation, now cites specific `rule_checks` entries by rule name/ID rather than speaking generically |
+| `generated_by` | TEXT | |
+| `generated_at` | TIMESTAMP | |
+
+### `missing_documentation_checks` *(Missing Documentation Advisor — added 2026-07-14)*
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `claim_id` | TEXT | Keyed by claim, like fraud checks — reflects the claim's current state, not one specific assessment run |
+| `all_requirements_met` | BOOLEAN | |
+| `missing_documents` | JSONB | Array of `{document_type, linked_rule_id, reason}` |
+| `submitted_documents_summary` | TEXT | |
+| `checked_by` | TEXT | |
+| `checked_at` | TIMESTAMP | |
+
+Frontend scopes this feature to `REFER_FOR_FURTHER_REVIEW` rows only — the workflow's own prompt frames
+its purpose as "what's still required to complete assessment," which only applies when assessment
+couldn't be completed. Extending it to REJECT rows (using `rule_checks.evidence_fields` — whether the
+failing rule's evidence pointed at `claim_documents` vs. `policy_record`/`claim_record` — as a
+deterministic signal for whether a rejection was document-related) was discussed and agreed in
+principle but not yet built.
+
+### `fraud_risk_checks` *(Fraud/Anomaly Risk Signals)*
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID PK | |
+| `claim_id` | TEXT | |
+| `risk_level` | TEXT | LOW, MEDIUM, HIGH |
+| `flags` | JSONB | Array of `{signal, explanation}` |
+| `recommended_action` | TEXT | proceed_normally, flag_for_investigation |
+| `checked_by` | TEXT | |
+| `checked_at` | TIMESTAMP | |
 
 ### `workflow_nodes` *(DSL Change Management)*
 | Column | Type | Notes |
@@ -457,7 +497,11 @@ Fetch Eligibility Rules (policy_type=life, returns 5 rules)
   ↓
 Rule-by-Rule Eligibility Check (LLM GPT-5.2, structured output)
   — uses policy_summary not full policy_text (token limit)
-  → rules_evaluated[], mandatory_rules_failed, hard_blockers_present
+  → rule_checks[] ({rule_id, rule_name, result, is_mandatory, reason, evidence_fields[]})
+  ↓
+compute_rule_counts (Code — deterministic)
+  → mandatory_rules_failed, total_rules_passed, mandatory_unknown_count, all_not_applicable
+    (counted in code from rule_checks, not LLM-recalled — see §15's deterministic-over-LLM pattern)
   ↓
 Policy Document Analysis (LLM GPT-5.2, structured output)
   — uses full policy_data including policy_text
@@ -466,10 +510,17 @@ Policy Document Analysis (LLM GPT-5.2, structured output)
 Synthesise Final Verdict (LLM GPT-5.2, structured output)
   → recommendation (APPROVE/REJECT/REFER_FOR_FURTHER_REVIEW), confidence_level
   ↓
-Format Final Report (LLM GPT-5.2, plain text)
+Format Final Report (LLM GPT-5.2, structured output)
   ↓
-LLM-as-Judge (LLM GPT-5.2, structured output) ← Component 5
-  → completeness, consistency, hallucination_risk, clarity scores (0-1 each)
+LLM-as-Judge (LLM GPT-5.2, structured output) ← Component 5, redesigned 2026-07-15/16
+  — now grounded in real claim_record + policy_record, not just the generated report/verdict
+  → judge_completeness/consistency/hallucination_risk/clarity_score (1.0-5.0 each) + judge_comments
+  ↓
+compute_judge_overall (Code — deterministic, new 2026-07-16)
+  → judge_overall_score = simple average of the 4 sub-scores (previously LLM-invented, no formula)
+  ↓
+prepare_assessment_log_payload (Code) — assembles claim_id, verdict fields, judge scores,
+  judge_overall_score, and rule_checks (JSON-serialized) into one payload
   ↓
 POST to /assessment-logs (HTTP → MCP)
   ↓
@@ -494,7 +545,11 @@ End
 - Policy Document Analysis receives full `policy_data` including `policy_text`
 - Synthesise Verdict receives `structured_output` objects from both D5 and D6 nodes
 - All four workflows published in Dify and available as tools for the orchestrator
-- DSL YAML exports in `dify-data/`
+- **DSL YAML exports are canonically in the `dify-workflows` Supabase Storage bucket, not
+  `dify-data/`** (see §14) — `dify-data/*.yml` on local disk is a frozen historical artifact only,
+  never read by the running system, and must never be edited as if it were current. Doing so once
+  (2026-07-16) silently regressed the `rule_checks` persistence fix, because the local copy predated
+  it — see §14's gotcha note before ever editing one of these workflow files directly again
 
 ### Orchestrator Architecture (Test_Orchestrator_1-1.yml — canonical, final working version ✅)
 
@@ -617,7 +672,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 
 **Cloud:** https://sit-capstone.onrender.com
 
-### All 24 Endpoints (corrected 2026-07-14 — added Storage-backed DSL snapshot/upload/node-diff endpoints)
+### All 28 Endpoints (corrected 2026-07-16 — added `/explanations` and `/missing-documentation-checks`)
 
 | Endpoint | Method | Purpose |
 |---|---|---|
@@ -630,8 +685,12 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/claim-documents` | GET | Documents for a claim — returns `[]` (not 404) if none exist |
 | `/fraud-risk-checks` | GET | Query logged fraud/anomaly risk-signal results |
 | `/fraud-risk-checks` | POST | Write a fraud/anomaly risk-signal result |
-| `/assessment-logs` | POST | Write assessment result to audit log |
-| `/assessment-logs` | GET | Query audit log (management dashboard) |
+| `/explanations` | GET | Query assessment explanations, filterable by `log_id`/`claim_id` — added 2026-07-14 |
+| `/explanations` | POST | Write an assessment explanation, keyed by `log_id` — added 2026-07-14 |
+| `/missing-documentation-checks` | GET | Query missing-documentation checks by `claim_id` — added 2026-07-14 |
+| `/missing-documentation-checks` | POST | Write a missing-documentation check — added 2026-07-14 |
+| `/assessment-logs` | POST | Write assessment result to audit log — `rule_checks` field added 2026-07-15 (`Union[str, List[dict]]`, since Dify sends it as a native array) |
+| `/assessment-logs` | GET | Query audit log (management dashboard); `log_id` filter added 2026-07-14 for Explain's row-specificity fix |
 | `/workflow-nodes` | GET | Stored DSL nodes for a workflow |
 | `/workflow-nodes` | POST | Store node after approval |
 | `/change-approvals` | GET | Pending/approved changes |
@@ -674,9 +733,11 @@ in the local `.env` as of 2026-07-14. Also requires `python-multipart` (added to
 ## 11. Component 3 — Database Layer (Supabase)
 
 - **Region:** Singapore (ap-southeast-1)
-- **RLS:** Enabled on all 7 tables
+- **RLS:** Enabled on all 10 tables
 - **Access:** MCP server only (secret key bypasses RLS)
-- **Tables:** policies, claims, claim_documents, eligibility_rules, assessment_logs, workflow_nodes, change_approvals
+- **Tables:** policies, claims, claim_documents, eligibility_rules, assessment_logs, workflow_nodes,
+  change_approvals, plus three added 2026-07-14 for the product-capability apps (§7): fraud_risk_checks,
+  assessment_explanations, missing_documentation_checks
 - **Storage buckets:** `policy-documents` (public, 1,000 policy PDFs) and **`dify-workflows`** (private,
   added 2026-07-14 — the sole "current version" source of truth for all 25 Dify workflow YAMLs; see §14.
   Private because only the MCP server's service-role key ever touches it, same bypass-RLS mechanism used
@@ -827,39 +888,107 @@ build):** the real scale is **1.0–5.0**, not 0-1 as originally drafted here �
 `hallucination_risk` came back weakest for every workflow (3.95-4.12/5.0), which is what drove its 8
 real submitted `change_approvals` suggestions — see §15.
 
-### Dify Implementation
+### Dify Implementation (redesigned 2026-07-15/16 — see "Grounding Redesign" below for why)
 
 **Node name:** `llm_judge` | **Model:** GPT-5.2 | **Structured Output:** ON
 
-**JSON Schema:**
+**JSON Schema (current, actual):**
 ```json
 {
   "type": "object",
   "properties": {
-    "completeness_score": {"type": "number", "minimum": 0, "maximum": 1},
-    "consistency_score": {"type": "number", "minimum": 0, "maximum": 1},
-    "hallucination_risk_score": {"type": "number", "minimum": 0, "maximum": 1},
-    "clarity_score": {"type": "number", "minimum": 0, "maximum": 1},
-    "overall_score": {"type": "number", "minimum": 0, "maximum": 1},
-    "completeness_reasoning": {"type": "string"},
-    "consistency_reasoning": {"type": "string"},
-    "hallucination_reasoning": {"type": "string"},
-    "clarity_reasoning": {"type": "string"},
-    "flagged_issues": {"type": "array", "items": {"type": "string"}}
+    "judge_completeness_score": {"type": "number"},
+    "judge_consistency_score": {"type": "number"},
+    "judge_hallucination_risk_score": {"type": "number"},
+    "judge_clarity_score": {"type": "number"},
+    "judge_comments": {"type": "string"}
   },
-  "required": ["completeness_score", "consistency_score", "hallucination_risk_score",
-               "clarity_score", "overall_score", "flagged_issues"]
+  "required": ["judge_completeness_score", "judge_consistency_score",
+               "judge_hallucination_risk_score", "judge_clarity_score", "judge_comments"]
 }
 ```
+Note: `judge_overall_score` is deliberately **not** part of this schema — see below.
 
-**System Prompt:** You are a quality assurance evaluator for an AI insurance claims assessment system. Evaluate reports on four dimensions: completeness, consistency, hallucination risk, and clarity. Be strict and objective. Do not score above 0.8 unless the report is genuinely excellent in that dimension.
+**System Prompt (current):** *"You are an internal quality judge for assessment reports. You are given
+the actual claim record and policy record for this claim, alongside the AI-generated final report and
+verdict. Score the final report on four dimensions, each 1.0-5.0, using these anchors: completeness
+(5 = all required elements present and clearly explained ... 1 = major required elements missing);
+consistency (5 = fully consistent ... 1 = narrative and verdict actively contradict each other);
+hallucination risk, higher = lower risk / safer — cross-check every factual statement in the report
+against the claim record and policy record provided below; a statement not directly supported by those
+records is a hallucination (5 = every factual claim is directly traceable ... 1 = the report states
+specific facts that contradict or are absent from the claim/policy record); clarity (5 = clear,
+well-organized ... 1 = confusing or ambiguous). ... Do not compute or return an overall score - that is
+computed separately from your four dimension scores."*
 
-**User Prompt:** Evaluate this assessment report. Claim type: {{claim_type}}. Applicable eligibility rules: {{eligibility_rules}}. Policy type: {{policy_type}}.
+**User Prompt (current):** claim record + policy record (full JSON, same `claim_record_json`/
+`policy_record_json` variables `rule_by_rule_eligibility_check` already uses) + the generated final
+report + verdict payload.
 
-ASSESSMENT REPORT:
-{{format_final_report.text}}
+**`compute_judge_overall` (new code node, deterministic):**
+```python
+def _to_float(v, default=0.0):
+    try:
+        return float(v)
+    except Exception:
+        return default
 
-Score each dimension 0.0-1.0 and identify specific issues.
+def main(judge=None):
+    judge = judge or {}
+    scores = [
+        _to_float(judge.get("judge_completeness_score")),
+        _to_float(judge.get("judge_consistency_score")),
+        _to_float(judge.get("judge_hallucination_risk_score")),
+        _to_float(judge.get("judge_clarity_score")),
+    ]
+    overall = sum(scores) / len(scores) if scores else 0.0
+    return {"judge_overall_score": round(overall, 2)}
+```
+Sits between `llm_judge` and `prepare_assessment_log_payload` in the graph; the latter now takes
+`judge_overall_score` as its own parameter (sourced from this node) instead of reading
+`judge.get("judge_overall_score")`.
+
+### Grounding Redesign (2026-07-15/16) — the previous design was measuring the wrong thing
+
+Jasbir flagged the Dashboard's "Avg Judge Score"/"Avg Hallucination Risk" cards as "feeling fake" and
+asked how they were actually measured. Pulling the real deployed `llm_judge` prompt (as it existed
+before this fix) surfaced three concrete logic gaps, not just a vague quality concern:
+
+1. **No grounding.** The judge only ever received the `format_final_report` narrative (LLM-written
+   prose: `executive_summary`, `rule_summary`, `risk_flags`, `audit_notes`) and the verdict — both
+   already LLM output. It never saw `claim_record`, `policy_record`, or `rule_checks`. So
+   "hallucination risk" could not mean "did the report state something false about this claim" — there
+   was nothing real to check against. It was actually measuring internal narrative self-consistency, a
+   much weaker thing wearing a stronger label.
+2. **No rubric anchors.** "Score 1.0-5.0" with zero definition of what a 2 vs. a 4 means — the same
+   report could plausibly score differently across runs for no principled reason.
+3. **`judge_overall_score` was a free 5th number the LLM invented**, not a computed aggregate of the
+   other four — no guaranteed relationship to completeness/consistency/hallucination/clarity at all.
+
+**Fix:** grounded the judge in the real `claim_record`/`policy_record` (Jasbir's choice over the
+lighter-weight `rule_checks`/`evidence_fields`-only option, for stronger fact-checking beyond just
+rule-linked evidence), added explicit rubric anchors per dimension, and moved `judge_overall_score` to
+a deterministic code node (simple average — Jasbir's choice over a hallucination-weighted formula, for
+transparency/simplicity in the capstone writeup) — the same deterministic-over-LLM-judgment pattern
+used elsewhere in this project (§15).
+
+**Verified live post-redesign (2026-07-16):** one fresh assessment per domain, all 4 succeeded end to
+end; in every case `judge_overall_score` matched the exact average of the 4 sub-scores, and
+`rule_checks` persisted correctly alongside it. Hallucination-risk scores on these first grounded runs
+came back notably lower/riskier (2/5 on 3 of 4) than the historical ~4/5 norm — evidence the redesigned
+judge is now actually catching unsupported statements it structurally could not have detected before,
+not a regression.
+
+**A mistake made and caught while building this:** the redesign was first applied on top of the local
+`dify-data/*.yml` copies, which (per the `dify-data/` staleness note in §14) predated the `rule_checks`
+persistence fix — silently regressing it. Caught by Jasbir asking "is this reading from the dify-data
+folder??" about the Workflow Snapshots diff view, which surfaced the mismatch. Fixed by rebuilding the
+redesign on top of the correct baseline (the latest `dsl-governance-history` GitHub snapshot for each
+file, confirmed to have `rule_checks` intact) instead, with a surgical patch (one added parameter, one
+changed line) to `prepare_assessment_log_payload` rather than a wholesale rewrite, specifically to avoid
+clobbering domain-specific defaults or extraction logic a second time. `dify-data/` was reverted to its
+committed state and is not to be edited again — Storage/GitHub snapshots are the only valid editing
+baseline going forward.
 
 ---
 
@@ -971,6 +1100,23 @@ clear error. Requires `python-multipart` (added to `requirements.txt` 2026-07-14
 whole-file snapshot work above, which is its own separate, already-fully-wired mechanism (both CLI and
 frontend can trigger a snapshot commit).
 
+**Gotcha, learned the hard way (2026-07-16): never edit `dify-data/*.yml` and treat it as current.**
+It's a frozen historical artifact that stopped being updated once the Storage migration landed — later
+fixes (e.g. the `rule_checks` persistence fix, 2026-07-15) were applied to a different set of files
+(repo-root export copies) and uploaded straight to Storage, never synced back into `dify-data/`. Editing
+`dify-data/` directly and assuming it reflects reality will silently regress whatever changes it missed.
+**The only valid editing baseline is either the current Storage bucket content, or the latest commit on
+the `dsl-governance-history` branch for that file** (`git_commit.get_file_content_at_ref`) — both are
+verifiable via `/dsl/snapshots/node-diff` before trusting them as a starting point. This is exactly what
+happened building the LLM-as-Judge grounding redesign (§13) — caught before it reached Dify, but only
+because the resulting Storage diff looked suspicious enough to double-check.
+
+**Frontend polish (2026-07-16):** the Workflow Snapshots tab no longer displays the `dify-data/` prefix
+anywhere (dropdown, headers, snapshot-result list) — Jasbir flagged it as misleading given the actual
+source is the `dify-workflows` Storage bucket. A `displayName()` helper in `dsl/page.tsx` strips the
+prefix for display only; the API calls underneath still send `dify-data/{name}` (the real GitHub commit
+path, kept for continuity with existing snapshot history — an internal detail, not user-facing).
+
 ---
 
 ## 15. Component 7 — Prompt Optimisation Agent
@@ -1061,9 +1207,47 @@ run_for_workflow(workflow_type, dry_run)         # orchestrates the above per wo
 
 **1. Chat Interface** — natural language query input, message history, routing visibility panel (which workflow ran), loading state for long assessments
 
-**2. Audit Log View** *(compliance and audit stakeholders)* — table of assessment_logs, filters (date, workflow type, recommendation, confidence, judge score threshold), expandable rows with full details + judge scores, link to MLflow run
+**2. Audit Log View** *(compliance and audit stakeholders)* — table of assessment_logs, filters (date, workflow type, recommendation, confidence, judge score threshold), expandable rows with full details + judge scores, link to MLflow run. Row expansion is keyed on the real `log_id` PK (fixed 2026-07-14 — the type had a fabricated `.id` field that never existed in real data, so every row's key was `undefined` and clicking one row expanded all of them).
 
-**3. Management Dashboard** *(business stakeholders)* — claims volume by type, recommendation distribution chart, LLM-as-Judge score trend over time, confidence by workflow type, anomaly flags, workload by officer
+**AI Insights** *(consolidated 2026-07-14, redesigned into a compact menu 2026-07-14/15)* — one column
+per row replacing three previously-separate always-visible columns, to reduce clutter as more
+product-capability apps were wired in:
+- **Assessment Explanation** (`Explain_Assessment_Reasoning`) — on-demand plain-language walkthrough of
+  one specific verdict, rendered via `react-markdown`. Keyed by `log_id`, not `claim_id` (a claim can
+  have multiple assessment_logs rows; an explanation is tied to one specific run) — required threading
+  `log_id` through the Start node, `extract_claim_id` code, HTTP params, and `/assessment-logs?log_id=`
+  after discovering the feature always explained a claim's *newest* assessment regardless of which row
+  was clicked. Now cites specific rules by name using the persisted `rule_checks` data (§7) instead of
+  speaking generically. A hallucination-risk-score misinterpretation was also fixed here — the prompt
+  described a high (safe) score as "relatively elevated" (implying danger) when higher actually means
+  safer per this project's convention.
+- **Missing Documentation** (`Missing_Documentation_Advisor`) — scoped to `REFER_FOR_FURTHER_REVIEW`
+  rows only (see §7's `missing_documentation_checks` note on why, and the deferred REJECT-scoping idea).
+- **Fraud/Anomaly Risk Signals** — click-to-recheck, with timestamp and a success flash on the badge.
+
+The trigger button shows a status dot per capability; clicking opens a dropdown to view/run/recheck any
+of the three, then expands the row to the relevant section. Three visual options (dropdown menu / icon
+cluster / expand-in-place pill) were mocked up as a Claude Artifact against real CLM-0802 data before
+building, so Jasbir could compare before committing to one.
+
+**3. Management Dashboard** *(business stakeholders)* — recommendation distribution, claims volume by
+domain, LLM-as-Judge score trend (last 30 runs), confidence distribution, **Rule Failure Analysis**
+(new 2026-07-16 — most frequently failed eligibility rules from persisted `rule_checks`, mandatory rules
+in red/non-mandatory in amber, plus a recent-failures feed; captioned with how many assessments have
+rule-level data since coverage only grows from the persistence fix's rollout date forward), **Missing
+Documentation** (new 2026-07-16 — completeness split, most commonly missing document types, claims
+still missing docs), and Fraud/Anomaly Risk Signals (risk level distribution, recent flags, high-risk
+claims needing follow-up — accumulates as claims are checked via the Audit Log, not a full-portfolio
+scan).
+
+**KPI cards (fixed 2026-07-16):** "Total Assessments" now shows **distinct claims assessed**, with
+total runs as a sub-label — the raw row count was inflated by heavy repeat dev-testing of the same
+handful of claims (e.g. one claim assessed 19 times) and read as a misleading headline number for a
+management-facing stat. "Avg Judge Score"/"Avg Hallucination Risk" now average over a **trailing window
+of the last 50 assessments** instead of all-time — an all-time average over hundreds of historical rows
+stays dominated by old data for a long time after any judge/prompt redesign (like §13's grounding fix),
+making the cards look unresponsive to real changes; the trailing window matches the "last 30 runs"
+convention the trend chart below it already used.
 
 **4. DSL Change Management View** *(IT governance)* — four tabs as of 2026-07-14: **Pending Approvals**
 (node-level diffs, approval form with verified identity + mandatory reason), **History** (approved/
@@ -1199,7 +1383,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 |---|---|---|
 | Supabase schema (7 tables) | ✅ Done | policies, claims, claim_documents, eligibility_rules, assessment_logs, workflow_nodes, change_approvals |
 | Synthetic data | ✅ Done | 1,000 policies, 1,522 claims, 1,000 PDFs, 24 rules |
-| MCP server v2.1.0 (14 endpoints) | ✅ Done | All core + assessment-logs + workflow-nodes + change-approvals + /claims/domain |
+| MCP server v2.1.0 (28 endpoints, see §10) | ✅ Done | All core + assessment-logs + workflow-nodes + change-approvals + /claims/domain + DSL Storage/snapshot endpoints + explanations + missing-documentation-checks |
 | MCP cloud deployment | ✅ Done | https://sit-capstone.onrender.com |
 | MLflow + Databricks connection | ✅ Done | Experiment ID: 2726789194105433 |
 | setup_mlflow.py | ✅ Done | Auto-detects username, creates experiment, logs test run |
@@ -1242,6 +1426,12 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | Workflow upload page | ✅ Done | `POST /dsl/upload` (multipart, validates real Dify DSL before accepting) + frontend upload card in the Workflow Snapshots tab — add/update a workflow directly from the browser, no manual file placement or backend access needed. Added `python-multipart` dependency |
 | Governance review pass (2026-07-13/14 session) | ✅ Done | 12 real pending `change_approvals` reviewed and actioned: 5 approved (deterministic rule-count fix formalized across Life/Health/Disability/CI, plus a Disability `policy_document_analysis` baseline correction) + 4 approved (`claim_documents`/`content_summary` visibility fix, same 4 workflows) + 7 rejected (unapplied `prompt_advisor_agent` hallucination-guardrail proposals — general guardrails already present and judged sufficient). All via CLI with real GitHub commits |
 | **Deploy gap:** Storage/snapshot work not yet live on Render | 🔲 Open | `GITHUB_TOKEN`/`GITHUB_REPO`/`GITHUB_GOVERNANCE_BRANCH` only in local `mcp_server/.env` as of 2026-07-14, not yet mirrored to Render's dashboard; `python-multipart` needs to install on Render's next deploy for `/dsl/upload` to work live |
+| `Explain_Assessment_Reasoning` / `Missing_Documentation_Advisor` frontend integration | ✅ Done | Both wired into the Audit Log's consolidated "AI Insights" menu (§16); `assessment_explanations`/`missing_documentation_checks` tables + 4 new MCP endpoints (§7, §10); fixed a real bug where Explain always explained a claim's newest assessment regardless of which row was clicked (required `log_id` threading end-to-end) and a hallucination-risk-score interpretation bug in Explain's prompt |
+| `rule_checks` persistence fix | ✅ Done | Closed a real logic gap: per-rule reasoning was always computed by `rule_by_rule_eligibility_check` but discarded after `compute_rule_counts` reduced it to two integers — a claim could land on REFER with zero visibility into which rule caused it. Now persisted (`assessment_logs.rule_checks`, §7) across all 4 `*_Assess_Claim` workflows and used by Explain to cite specific rules |
+| Audit Log "AI Insights" consolidation | ✅ Done | Replaced 3 separate always-visible columns (Explanation/Missing Docs/Fraud) with one compact menu — 3 visual options mocked as a Claude Artifact against real claim data before building; fixed a real row-expansion bug (`log.id` never existed, fabricated field → every row shared the same `undefined` key) along the way |
+| LLM-as-Judge grounding redesign | ✅ Done | See §13 — judge now grounded in real `claim_record`/`policy_record` with explicit rubric anchors instead of scoring an ungrounded narrative; `judge_overall_score` now a deterministic average via new `compute_judge_overall` code node instead of an LLM-invented number. Verified live across all 4 domains post-redesign. A mid-build mistake (redesign applied on top of a stale `dify-data/` copy, regressing `rule_checks`) was caught and fixed before reaching Dify — see §14's gotcha note |
+| Dashboard — Rule Failure Analysis + Missing Documentation panels | ✅ Done | New sections using the now-persisted `rule_checks` and `missing_documentation_checks` data (§16); KPI cards fixed to show distinct-claims count + trailing-50-run averages instead of misleading all-time/raw-row numbers |
+| DSL page — `dify-data/` label cleanup | ✅ Done | Workflow Snapshots tab no longer shows the `dify-data/` prefix anywhere in the UI (§14) — cosmetic only, underlying API contract unchanged |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
 
@@ -1255,6 +1445,8 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Done (2026-07-06/07)** | Frontend — all 4 views; MLflow Prompt Registry (79 prompts) + local viewer; 6 new Dify apps (3 product capabilities + 3 research-only); full dataset consistency backfill; 4-strategy research harness (18/20 final); 3-app product-capability harness (14/15 final); `evaluation/prompt_advisor.py` run for real (8 pending approvals) |
 | **Done (2026-07-13)** | `claims_history`/`customer_history` orchestrator intents (2 new shared sub-workflows, 6-intent orchestrator, 3 real routing-bug fixes); `/claims`/`/policies` 404-on-empty backend fix, deployed and confirmed live; stale `Test_Orchestrator-1.yml` deleted, single canonical orchestrator file — full build scope now considered complete |
 | **Done (2026-07-13/14)** | Whole-file workflow version history (`dsl-governance-history` GitHub branch); migrated DSL "current version" source of truth from local disk to a new private Supabase Storage bucket (`dify-workflows`), `dify-data/` kept as a frozen historical artifact only; node-level snapshot-vs-current comparison; workflow upload page (Storage-backed, no manual file placement); 12-item governance review pass (5+4 approved, 7 rejected, real GitHub commits). Committed `7982d70` + `983b561`. Not yet deployed to Render — local-only until env vars mirrored |
+| **Done (2026-07-14/15)** | `Explain_Assessment_Reasoning`/`Missing_Documentation_Advisor` integrated into the Audit Log frontend (`assessment_explanations`/`missing_documentation_checks` tables, 4 new MCP endpoints); fixed Explain's row-specificity bug (`log_id` threading) and a hallucination-risk-score interpretation bug; fixed a real Audit Log row-expansion bug (`log.id` → `log.log_id`); closed the `rule_checks` persistence logic gap across all 4 `*_Assess_Claim` workflows; consolidated 3 separate Audit Log columns into one "AI Insights" menu |
+| **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry) |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
