@@ -94,6 +94,51 @@ POLICY_TYPES = ['life', 'health', 'critical_illness', 'disability']
 
 CLAIM_STATUS_POOL = ['approved', 'approved', 'approved', 'pending', 'pending', 'under_review', 'rejected']
 
+# rejection_reason must be checkable by a real eligibility_rule for that specific
+# claim_type/claim_category — a shared, domain-blind pool (the original design) could
+# hand a life claim "Survival period not satisfied" or a health claim "Diagnosis does
+# not meet the clinical criteria defined in the policy", neither of which any rule can
+# verify. Reflects the rule set as of the 2026-07-16 coverage review (RULE-LI-006/007/008,
+# RULE-CI-007, RULE-DI-008, RULE-HE-007 added that session) — see PROJECT_CONTEXT.md.
+_UNIVERSAL_REASONS = [
+    'Claim submitted within waiting period',
+    'Policy was lapsed at time of incident',
+    'Claim amount exceeds sum assured',
+    'Incident does not fall within policy coverage period',
+]
+_PRE_EXISTING_REASON = 'Condition is a pre-existing illness not declared at underwriting'
+_INSUFFICIENT_DOCS_REASON = 'Insufficient supporting documents provided'
+_CLINICAL_CRITERIA_REASON = 'Diagnosis does not meet the clinical criteria defined in the policy'
+_SURVIVAL_PERIOD_REASON = 'Survival period of 30 days not satisfied'
+
+
+def valid_rejection_reasons(claim_type, claim_category):
+    reasons = list(_UNIVERSAL_REASONS)
+    if claim_type == 'critical_illness':
+        # RULE-CI-007 (pre-existing), RULE-CI-006 (documents), RULE-CI-003 (clinical
+        # criteria, pre-existing), RULE-CI-004 (survival period) — all apply universally
+        reasons += [_PRE_EXISTING_REASON, _INSUFFICIENT_DOCS_REASON, _CLINICAL_CRITERIA_REASON, _SURVIVAL_PERIOD_REASON]
+    elif claim_type == 'health':
+        # RULE-HE-005 (pre-existing), RULE-HE-007 (documents). No clinical-criteria rule —
+        # health policies aren't diagnosis-restricted the way CI is (no covered-illness
+        # list), and no survival-period concept.
+        reasons += [_PRE_EXISTING_REASON, _INSUFFICIENT_DOCS_REASON]
+    elif claim_type == 'disability':
+        # RULE-DI-008 (pre-existing), RULE-DI-004/006 (documents). No dedicated
+        # clinical-criteria rule — RULE-DI-004 only checks a report's presence, not
+        # whether the disability meets a defined standard.
+        reasons += [_PRE_EXISTING_REASON, _INSUFFICIENT_DOCS_REASON]
+    elif claim_type == 'life':
+        if claim_category == 'accidental_death':
+            reasons += [_INSUFFICIENT_DOCS_REASON]  # RULE-LI-005
+        elif claim_category == 'death':
+            reasons += [_PRE_EXISTING_REASON, _INSUFFICIENT_DOCS_REASON]  # RULE-LI-006/007
+        elif claim_category == 'total_permanent_disability':
+            # RULE-LI-006 (pre-existing), RULE-LI-008 (TPD certification — both a
+            # documentation check and a clinical/severity-definition check)
+            reasons += [_PRE_EXISTING_REASON, _INSUFFICIENT_DOCS_REASON, _CLINICAL_CRITERIA_REASON]
+    return reasons
+
 OFFICERS = [
     'Sarah Tan', 'Michael Lim', 'Priya Nair', 'David Wong',
     'Jessica Koh', 'Rahul Sharma', 'Emily Chen', 'James Lee',
@@ -222,16 +267,7 @@ def generate_claims(policies):
                 approved_amount = claim_amount
                 payment_date = (claim_date + timedelta(days=random.randint(14, 45))).isoformat()
             elif status == 'rejected':
-                rejection_reason = random.choice([
-                    'Claim submitted within waiting period',
-                    'Policy was lapsed at time of incident',
-                    'Claim amount exceeds sum assured',
-                    'Condition is a pre-existing illness not declared at underwriting',
-                    'Insufficient supporting documents provided',
-                    'Incident does not fall within policy coverage period',
-                    'Diagnosis does not meet the clinical criteria defined in the policy',
-                    'Survival period of 30 days not satisfied',
-                ])
+                rejection_reason = random.choice(valid_rejection_reasons(ptype, category))
 
             claims.append({
                 'claim_id': f"CLM-{claim_counter:04d}",
