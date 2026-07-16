@@ -348,12 +348,25 @@ CLAIM_STATUS_FROM_RECOMMENDATION = {
 # their original (possibly stale) label; not retroactively rewritten, since reconstructing
 # exact historical change boundaries from timestamps alone would be guesswork.
 PROMPT_VERSION_BUMPS = {
-    # 2026-07-16: LLM-as-judge grounding redesign (claim/policy-grounded scoring, rubric
-    # anchors, deterministic judge_overall_score) — see PROJECT_CONTEXT.md §13.
-    "life_assess_claim_v1.0": "life_assess_claim_v1.1",
-    "health_assess_claim_v1.0": "health_assess_claim_v1.1",
-    "ci_assess_claim_v1.0": "ci_assess_claim_v1.1",
-    "disability_assess_claim_v1.0": "disability_assess_claim_v1.1",
+    # Dify always sends the hardcoded "_v1.0" default (never edited — see the design-boundary
+    # note above) — the key is always "_v1.0" regardless of how many real changes have
+    # actually shipped since; only the target value moves forward each time.
+    #
+    # v1.1 (2026-07-16): LLM-as-judge grounding redesign (claim/policy-grounded scoring,
+    # rubric anchors, deterministic judge_overall_score) — see PROJECT_CONTEXT.md §13.
+    #
+    # v1.2 (2026-07-16/17): judge_comments persistence; target-leakage fix (claim_record_json
+    # no longer includes status/rejection_reason); judge now also grounded in
+    # claim_documents, not just claim/policy records (was systematically flagging correctly-
+    # cited document evidence as unsupported); new status-cross-check override
+    # (check_status_consistency node forcing REFER_FOR_FURTHER_REVIEW when the rule-based
+    # outcome disagrees with the claim's recorded status); fixed a leak where the override's
+    # internal field name/value ("status_override", "MISMATCH") was appearing verbatim in
+    # the final report's narrative text instead of plain language.
+    "life_assess_claim_v1.0": "life_assess_claim_v1.2",
+    "health_assess_claim_v1.0": "health_assess_claim_v1.2",
+    "ci_assess_claim_v1.0": "ci_assess_claim_v1.2",
+    "disability_assess_claim_v1.0": "disability_assess_claim_v1.2",
 }
 
 _mlflow_tracker = None
