@@ -259,11 +259,11 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `approved_amount` | NUMERIC | |
 | `payment_date` | DATE | |
 | `status` | TEXT | pending, approved, rejected, under_review. Randomly assigned at data-generation time (`generate_data.py`'s `CLAIM_STATUS_POOL`, weighted ~3:2:1:1 approved:pending:under_review:rejected) — **not** derived from `eligibility_rules`, so it's not ground truth against anything the assessment pipeline computes. **Write-back added 2026-07-16:** a claim's first real assessment while `status == "pending"` finalizes it (APPROVE→approved, REJECT→rejected, REFER_FOR_FURTHER_REVIEW→under_review) — see `POST /assessment-logs` in §10. Already-decided claims are never touched by this — re-assessing one is an audit re-check, not intake, and must never silently overwrite the existing record. This makes the write-back self-limiting: once a claim's status is set (by write-back or by the original random label), later re-assessments of the same claim can't overwrite it again |
-| `rejection_reason` | TEXT | On write-back, derived from the primary failed mandatory rule in the assessment's `rule_checks` (e.g. *"Accidental Death Evidence: required death-claim documents not evidenced as complete"*) |
+| `rejection_reason` | TEXT | On write-back, derived from the primary failed mandatory rule in the assessment's `rule_checks` (e.g. *"Accidental Death Evidence: required death-claim documents not evidenced as complete"*). **Fixed 2026-07-16:** at data-generation time, this was drawn from one shared 8-reason pool applied to every domain — e.g. a life claim could be randomly assigned "Survival period not satisfied" (a critical_illness-only concept) or "Diagnosis does not meet the clinical criteria defined in the policy" (unmodelable by any rule, any domain, at the time). `generate_data.py`'s `valid_rejection_reasons()` now draws from a domain-and-category-aware pool matching the actual rule set (see `eligibility_rules` below); `fix_rejection_reasons.py` was a one-time correction for the 227 already-generated rejected claims (61 reassigned, plus 17 `claim_documents` rows removed where a claim's own "insufficient documents" reason was contradicted by a document actually being present) |
 | `assigned_officer` | TEXT | |
 | `notes` | TEXT | |
 | `created_at` | TIMESTAMP | |
-| `diagnosis` | TEXT | **Added 2026-07-06** — plain-language diagnosis/condition for the claim. Needed because `RULE-HE-005` (Pre-existing Condition Exclusion) requires knowing what the condition actually is; originally there was no field anywhere in the schema for this, making the rule permanently unverifiable regardless of any other data. Nullable — most claims still won't have it populated. |
+| `diagnosis` | TEXT | **Added 2026-07-06** — plain-language diagnosis/condition for the claim. Needed because `RULE-HE-005` (Pre-existing Condition Exclusion) requires knowing what the condition actually is; originally there was no field anywhere in the schema for this, making the rule permanently unverifiable regardless of any other data. **Backfilled for life/critical_illness/disability 2026-07-16** (`backfill_claim_evidence_v2.py`) — was health-only until then, meaning the new `RULE-LI-006`/`RULE-CI-007`/`RULE-DI-008` pre-existing-condition rules would otherwise always return UNKNOWN. |
 | `condition_is_pre_existing` | BOOLEAN | **Added 2026-07-06** — resolves `RULE-HE-005` definitively once set. Nullable — absence means "unknown," which a careful assessor should still treat as unable to confirm the rule, not as a pass. |
 
 **Claim categories:**
@@ -281,7 +281,7 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `document_name` | TEXT | |
 | `pdf_url` | TEXT | |
 | `uploaded_at` | TIMESTAMP | |
-| `content_summary` | TEXT | **Added 2026-07-06** — plain-text summary of what the document actually states. Without this, this table only ever stored metadata (type/name/url), so a rule like `RULE-DI-007` ("incident must not be self-inflicted **as stated in medical report**") could never be confirmed no matter which document type was present — presence alone can't satisfy a rule that depends on document content. Nullable — most rows still won't have it. |
+| `content_summary` | TEXT | **Added 2026-07-06** — plain-text summary of what the document actually states. Without this, this table only ever stored metadata (type/name/url), so a rule like `RULE-DI-007` ("incident must not be self-inflicted **as stated in medical report**") could never be confirmed no matter which document type was present — presence alone can't satisfy a rule that depends on document content. **Health had zero rows in this table at all until 2026-07-16** (`medical_report` backfilled for `RULE-HE-007`), and life only had documents for `accidental_death` — `death`/`total_permanent_disability` categories got `death_certificate`/`tpd_medical_certification` the same day, for `RULE-LI-007`/`RULE-LI-008`. |
 
 ### `eligibility_rules`
 | Column | Type | Notes |
@@ -293,7 +293,32 @@ All tables: RLS enabled. MCP server uses secret key. Frontend never touches Supa
 | `condition` | TEXT | |
 | `is_mandatory` | BOOLEAN | FAIL = hard rejection |
 
-24 rules: 5 life, 6 health, 6 critical illness, 7 disability.
+30 rules: 8 life, 7 health, 7 critical illness, 8 disability (originally 24: 5/6/6/7 — 6 added
+2026-07-16, see below).
+
+**Rule-coverage review and additions (2026-07-16).** Cross-referencing all 8 synthetic
+`rejection_reason` categories (`generate_data.py`) against what the rule set could actually
+verify found real, precise gaps — not evenly distributed:
+- `RULE-LI-006` Pre-existing Condition Exclusion (life, `death`/`total_permanent_disability`
+  categories only — not `accidental_death`)
+- `RULE-LI-007` Death Certificate Evidence (life, `death` category only)
+- `RULE-LI-008` TPD Medical Certification (life, `total_permanent_disability` category only —
+  doubles as both a documentation check and a clinical/severity-definition check)
+- `RULE-CI-007` Pre-existing Condition Exclusion (critical_illness — CI previously had none)
+- `RULE-DI-008` Pre-existing Condition Exclusion (disability — disability previously had none)
+- `RULE-HE-007` Medical Documentation Required (health — health previously had zero
+  documentation requirement at all; `RULE-HE-004` only checks facility approval)
+
+Deliberately **not** added: a health "clinical criteria" rule — health policies aren't
+diagnosis-restricted the way critical_illness is (no covered-illness list concept), so a
+rule there would be artificial. That rejection reason is correctly excluded from health's
+pool in `generate_data.py` instead (see below).
+
+All 6 new rules required **zero Dify workflow changes** — `rule_by_rule_eligibility_check`
+fetches rules dynamically per `policy_type` via `/eligibility-rules?policy_type=X`, so new
+rows are picked up automatically. Verified live: adding `RULE-HE-007` alone (before its
+backing data existed) correctly flipped a real health assessment from APPROVE to REJECT,
+confirming the new rule was evaluated with zero workflow changes.
 
 ### `assessment_logs` *(Governance — audit trail)*
 | Column | Type | Notes |
@@ -398,7 +423,7 @@ was document-related (see §16).
 - **1,000 policies** — 60 fictional products (15 per type), ~85% active
 - **1,522 claims** — type-specific frequency based on MOH/LIA Singapore statistics
 - **1,000 policy PDFs** — 11-page legal contracts (~23KB each)
-- **24 eligibility rules** — 5 life, 6 health, 6 CI, 7 disability
+- **30 eligibility rules** (originally 24: 5 life, 6 health, 6 CI, 7 disability — 6 added 2026-07-16, see §7)
 
 **Claim frequency (MOH/LIA Singapore):**
 - Health: avg 4.0/policy | Disability: avg 1.0/policy | CI: avg 0.5/policy | Life: avg 0.3/policy
@@ -563,6 +588,23 @@ End
   non-destructive repeat runs (`run_evaluation.py`'s combined strategy) snapshots/restores
   `claims.status` itself via a direct Supabase call around the Dify request, rather than the workflow
   needing to know it's being tested
+- **Target-leakage fix (2026-07-16): `claim_record_json` no longer includes `status`/`rejection_reason`.**
+  `extract_claims_fields` (node `1779138546683`, identical across all 4 workflows) used to
+  `json.dumps()` the raw claim record wholesale into `claim_record_json` — the single variable all 5
+  downstream LLM nodes (`rule_by_rule_eligibility_check`, `policy_document_analysis`,
+  `synthesize_final_verdict`, `format_final_report`, `llm_judge`) read as "the claim." `status`/
+  `rejection_reason` are the claim's *outcome* (a prior, unverified label, or what the write-back
+  itself sets) — not evidence a rule can check — so no node deriving a fresh, independent verdict
+  should be able to see the very outcome it's supposed to be producing. Caught via a real live
+  incident: the rule-checker referenced `claim_record.status` in its reasoning and **deferred to a
+  stale status over a genuinely-present document**, downgrading a rule that should have passed. (The
+  stale status was itself self-inflicted test contamination from an earlier debugging session, but the
+  behavior it exposed — the model trusting old status over fresh evidence when they conflict — is a
+  real, general risk given `status` is largely random, see above.) Fixed with one line: `claim_record_json`
+  now serializes `{k: v for k, v in c.items() if k not in ("status", "rejection_reason")}` instead of
+  the raw record — a single choke point, so all 5 downstream nodes are fixed at once. Verified live:
+  zero `claim_record.status`/`rejection_reason` references anywhere in a real assessment's
+  `evidence_fields` afterward.
 
 ### Orchestrator Architecture (Test_Orchestrator_1-1.yml — canonical, final working version ✅)
 
@@ -1470,7 +1512,10 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | DSL page — `dify-data/` label cleanup | ✅ Done | Workflow Snapshots tab no longer shows the `dify-data/` prefix anywhere in the UI (§14) — cosmetic only, underlying API contract unchanged |
 | `claims.status` write-back + status cross-check | ✅ Done | `POST /assessment-logs` finalizes a `pending` claim's status on its first real assessment (§7, §10), and computes an observe-only `status_cross_check` for already-decided claims — mutually exclusive per request, neither ever influences the verdict. Dify workflows deliberately left untouched (§9's design-boundary note) — `run_evaluation.py`'s combined strategy snapshots/restores `claims.status` itself instead of relying on a Dify-side flag. New Dashboard "Status Cross-Check" panel + Audit Log mismatch warning icon (§16). Committed `86310c8` (write-back), `16a6459` (cross-check) |
 | Repeat-Assessment Consistency + Missing Docs REJECT-scoping | ✅ Done | New Dashboard panel grouping `assessment_logs` by `claim_id`+`prompt_version` to check whether repeated runs agree (§16) — surfaced a real `prompt_version`-staleness limitation, documented in the panel itself. Missing Documentation Advisor now also shown on REJECT rows where `rule_checks.evidence_fields` points at `claim_documents` (§7, §16) — closes the previously-deferred REJECT-scoping idea. Both client-side only, no backend/Dify changes. Committed `16a6459` |
-| `mlflow_run_id` wiring + `prompt_version` staleness fix | ✅ Done | `POST /assessment-logs` now creates a real Databricks MLflow run per assessment (previously 0/345 real rows had one — the evaluation harness's own runs were never connected back) and overrides the known-stale `prompt_version` default server-side (§7, §10). MLflow logging runs as a `BackgroundTask` — found it took 13+ seconds even warm, unacceptable to block a chat response on. `mlflow`/`databricks-sdk` added to `requirements.txt`. Not committed as of this writing |
+| `mlflow_run_id` wiring + `prompt_version` staleness fix | ✅ Done | `POST /assessment-logs` now creates a real Databricks MLflow run per assessment (previously 0/345 real rows had one — the evaluation harness's own runs were never connected back) and overrides the known-stale `prompt_version` default server-side (§7, §10). MLflow logging runs as a `BackgroundTask` — found it took 13+ seconds even warm, unacceptable to block a chat response on. `mlflow`/`databricks-sdk` added to `requirements.txt`. Committed `a35bb6e` |
+| `judge_comments` persistence | ✅ Done | The judge's qualitative reasoning per score was computed on every assessment but never sent past Dify at all — `write_assessment_log`'s body never referenced it. Now logged as an MLflow artifact (not a new `assessment_logs` column) alongside `rule_checks`. Required a small Dify edit (one field added to `prepare_assessment_log_payload`'s output + `write_assessment_log`'s body, all 4 workflows) — the one fix this session that couldn't be done server-side only, since the MCP server has zero visibility into a field Dify never sent it |
+| Eligibility-rules coverage review (Phases 1-3) | ✅ Done | Full review of all 24 (then-existing) rules against the 8 synthetic `rejection_reason` categories found real, precisely-scoped gaps (§7). **Phase 1:** 6 new rules added (`RULE-LI-006/007/008`, `RULE-CI-007`, `RULE-DI-008`, `RULE-HE-007`) — zero Dify changes needed, rules fetched dynamically. **Phase 2:** `backfill_claim_evidence_v2.py` backfills the data those rules need (diagnosis/pre-existing for life/CI/disability, documents for health and life's death/TPD categories) — consistency-aware, not just presence-filling. **Phase 3:** `fix_rejection_reasons.py` corrects the 227 already-generated rejected claims to match the real rule set (61 reassigned, 17 contradicting documents removed) and `generate_data.py` fixed for future correctness (domain-and-category-aware pool, not one shared list). Verified: 0 mismatches/contradictions remain across all 227 rejected claims. Committed `bb395e1` |
+| Target-leakage fix (`claim_record_json`) | ✅ Done | `status`/`rejection_reason` — the claim's outcome, not evidence — were included in the single variable feeding all 5 downstream LLM nodes, discovered via a real incident where the rule-checker deferred to a stale status over a genuinely-present document. Fixed at the one choke point (`extract_claims_fields`), all 4 workflows, verified live (§9) |
 | **Deploy gap:** write-back/cross-check not yet live on Render | 🔲 Open | Same pattern as the Storage/snapshot deploy gap above — local MCP server only until the latest `main` is deployed |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
@@ -1486,7 +1531,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Done (2026-07-13)** | `claims_history`/`customer_history` orchestrator intents (2 new shared sub-workflows, 6-intent orchestrator, 3 real routing-bug fixes); `/claims`/`/policies` 404-on-empty backend fix, deployed and confirmed live; stale `Test_Orchestrator-1.yml` deleted, single canonical orchestrator file — full build scope now considered complete |
 | **Done (2026-07-13/14)** | Whole-file workflow version history (`dsl-governance-history` GitHub branch); migrated DSL "current version" source of truth from local disk to a new private Supabase Storage bucket (`dify-workflows`), `dify-data/` kept as a frozen historical artifact only; node-level snapshot-vs-current comparison; workflow upload page (Storage-backed, no manual file placement); 12-item governance review pass (5+4 approved, 7 rejected, real GitHub commits). Committed `7982d70` + `983b561`. Not yet deployed to Render — local-only until env vars mirrored |
 | **Done (2026-07-14/15)** | `Explain_Assessment_Reasoning`/`Missing_Documentation_Advisor` integrated into the Audit Log frontend (`assessment_explanations`/`missing_documentation_checks` tables, 4 new MCP endpoints); fixed Explain's row-specificity bug (`log_id` threading) and a hallucination-risk-score interpretation bug; fixed a real Audit Log row-expansion bug (`log.id` → `log.log_id`); closed the `rule_checks` persistence logic gap across all 4 `*_Assess_Claim` workflows; consolidated 3 separate Audit Log columns into one "AI Insights" menu |
-| **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry); `claims.status` write-back for pending claims + observe-only status cross-check for already-decided claims, both computed server-side with the Dify workflows deliberately left untouched (§7, §9, §10); new Dashboard "Status Cross-Check" panel (§16); Repeat-Assessment Consistency Dashboard panel, which surfaced a real `prompt_version`-staleness limitation while being validated against production data; Missing Documentation Advisor extended to document-related REJECT rows via `rule_checks.evidence_fields` (§7, §16); fixed `mlflow_run_id` (was 0/345 real rows populated — nothing in the live pipeline ever created an MLflow run) and the stale `prompt_version` default, both server-side, MLflow logging as a `BackgroundTask` after discovering it took 13+ seconds even warm (§7, §10) |
+| **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry); `claims.status` write-back for pending claims + observe-only status cross-check for already-decided claims, both computed server-side with the Dify workflows deliberately left untouched (§7, §9, §10); new Dashboard "Status Cross-Check" panel (§16); Repeat-Assessment Consistency Dashboard panel, which surfaced a real `prompt_version`-staleness limitation while being validated against production data; Missing Documentation Advisor extended to document-related REJECT rows via `rule_checks.evidence_fields` (§7, §16); fixed `mlflow_run_id` (was 0/345 real rows populated — nothing in the live pipeline ever created an MLflow run) and the stale `prompt_version` default, both server-side, MLflow logging as a `BackgroundTask` after discovering it took 13+ seconds even warm (§7, §10); `judge_comments` persistence via MLflow artifact (§10, §13); full eligibility-rules coverage review — 6 new rules, a two-domain-wider backfill (`backfill_claim_evidence_v2.py`), and a rejection-reason correction pass across all 227 rejected claims (§7, §8, §20); target-leakage fix removing `status`/`rejection_reason` from `claim_record_json`, the single variable feeding all 5 assessment LLM nodes (§9) |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
