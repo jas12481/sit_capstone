@@ -320,6 +320,13 @@ rows are picked up automatically. Verified live: adding `RULE-HE-007` alone (bef
 backing data existed) correctly flipped a real health assessment from APPROVE to REJECT,
 confirming the new rule was evaluated with zero workflow changes.
 
+**Wording bug found and fixed 2026-07-17** — all 4 pre-existing-condition rules' `condition`
+text originally said *"Policy text must confirm condition is not excluded"* (copied from the
+original `RULE-HE-005`), which was read overly literally and caused reproducible false
+`FAIL`s even when `condition_is_pre_existing` was clearly `false`. Reworded to point directly
+at the deterministic field (`RULE-LI-006`'s category gate preserved in the same edit) — see
+§13 for how this was discovered (via the fixed, evidence-grounded judge) and verified.
+
 ### `assessment_logs` *(Governance — audit trail)*
 | Column | Type | Notes |
 |---|---|---|
@@ -744,7 +751,7 @@ cd mcp_server && uvicorn main:app --reload --port 8000
 | `/explanations` | POST | Write an assessment explanation, keyed by `log_id` — added 2026-07-14 |
 | `/missing-documentation-checks` | GET | Query missing-documentation checks by `claim_id` — added 2026-07-14 |
 | `/missing-documentation-checks` | POST | Write a missing-documentation check — added 2026-07-14 |
-| `/assessment-logs` | POST | Write assessment result to audit log — `rule_checks` field added 2026-07-15 (`Union[str, List[dict]]`, since Dify sends it as a native array). **2026-07-16:** also finalizes `claims.status` for a claim that was `pending` (write-back), or computes `status_cross_check` for a claim that already had a decided status (observe-only, see §7) — mutually exclusive per request. `?skip_status_update=true` opts a caller out of the write-back only (never the cross-check, which is harmless) — used by `evaluation/run_evaluation.py`'s "combined" strategy, which snapshots/restores `claims.status` around the call instead of relying on any Dify-side flag (deliberately kept out of the Dify workflows themselves — see §9). Also overrides a known-stale `prompt_version` (`PROMPT_VERSION_BUMPS`, see §7) and schedules a real MLflow run via `BackgroundTasks` — **not synchronous**: a live Databricks round-trip (`mlflow.start_run` + several `log_param`/`log_metric` calls) measured at 13+ seconds even with a warm tracker, so `mlflow_run_id` is absent on the immediate response and only appears on a subsequent `GET` once the background task finishes. Requires `mlflow`/`databricks-sdk` (added to `requirements.txt` 2026-07-16) to actually install on Render's next deploy |
+| `/assessment-logs` | POST | Write assessment result to audit log — `rule_checks` field added 2026-07-15 (`Union[str, List[dict]]`, since Dify sends it as a native array). **2026-07-16:** also finalizes `claims.status` for a claim that was `pending` (write-back), or computes `status_cross_check` for a claim that already had a decided status (observe-only, see §7) — mutually exclusive per request. `?skip_status_update=true` opts a caller out of the write-back only (never the cross-check, which is harmless) — used by `evaluation/run_evaluation.py`'s "combined" strategy, which snapshots/restores `claims.status` around the call instead of relying on any Dify-side flag (deliberately kept out of the Dify workflows themselves — see §9). Also overrides a known-stale `prompt_version` (`PROMPT_VERSION_BUMPS`, now bumped to `v1.2` — see §7, §13) and schedules a real MLflow run via `BackgroundTasks` — **not synchronous**: a live Databricks round-trip (`mlflow.start_run` + several `log_param`/`log_metric` calls) measured at 13+ seconds even with a warm tracker, so `mlflow_run_id` is absent on the immediate response and only appears on a subsequent `GET` once the background task finishes. Requires `mlflow`/`databricks-sdk` (added to `requirements.txt` 2026-07-16) to actually install on Render's next deploy. **Idempotency added 2026-07-17:** an exact match on `claim_id` + all 4 judge sub-scores within a 120-second window is treated as a Dify retry (`write_assessment_log` has `retry_enabled: true`, no idempotency key) and returns the existing row instead of inserting a duplicate — found live after a stray duplicate survived several rounds of manual cleanup (§13) |
 | `/assessment-logs` | GET | Query audit log (management dashboard); `log_id` filter added 2026-07-14 for Explain's row-specificity fix |
 | `/workflow-nodes` | GET | Stored DSL nodes for a workflow |
 | `/workflow-nodes` | POST | Store node after approval |
@@ -1044,6 +1051,71 @@ changed line) to `prepare_assessment_log_payload` rather than a wholesale rewrit
 clobbering domain-specific defaults or extraction logic a second time. `dify-data/` was reverted to its
 committed state and is not to be edited again — Storage/GitHub snapshots are the only valid editing
 baseline going forward.
+
+**Round 2 — documents grounding gap (2026-07-16/17).** Even after the redesign above, hallucination-risk
+scores stayed consistently elevated. Root cause: `llm_judge`'s prompt only ever included
+`claim_record_json` + `policy_record_json` — never `claim_documents` (fetched separately by
+`fetch_claim_documents_assess`, already used by `rule_by_rule_eligibility_check`). Every document-based
+mandatory rule (medical certification, self-inflicted exclusion, death certificate, etc.) means the
+final report legitimately cites document content the judge had no way to verify — systematically
+flagging accurate, correctly-cited evidence as "unsupported." Fixed by adding the same `claim_documents`
+reference already used by the rule-checker to the judge's prompt, and mentioning documents explicitly in
+the hallucination-risk rubric. Verified live: the judge now correctly cites real evidence instead of
+flagging it, and — proof the fix works rather than just suppressing the signal — it went on to catch two
+genuinely new, real issues on the very next live runs (see §9's `RULE-DI-008` wording bug and the
+`status_override` narrative leak below), instead of generic false positives.
+
+**Status cross-check override (2026-07-16/17)** — the observe-only `status_cross_check` (§7, §10) can now
+optionally influence the verdict. New deterministic `check_status_consistency` code node (all 4
+workflows) compares the rule-implied outcome (`mandatory_rules_failed`, already computed
+deterministically by `compute_rule_counts`) against `claim_status` (already extracted separately by
+`extract_claims_fields` — not the raw `status`/`rejection_reason` stripped from `claim_record_json` by
+the target-leakage fix). Feeds a controlled classification (`NOT_APPLICABLE`/`CONSISTENT`/`MISMATCH`) —
+never raw status text — into `synthesize_final_verdict`'s existing decision table as branch B: a
+`MISMATCH` (rules look clean but the claim's recorded status says `rejected`, with no mandatory failure
+to explain the disagreement) forces `REFER_FOR_FURTHER_REVIEW`. Placed after the existing mandatory-
+failure branch, so a genuine rejection still takes priority — the only case needing new handling is
+"rules say fine but history disagrees," since the reverse was already covered. Verified live, including
+a real demonstration of the safety property it was built for: a buggy first run (see `RULE-DI-008` below)
+wrote back a wrong `rejected` status; the corrected re-run found the rules genuinely clean but correctly
+refused to flip straight to APPROVE against that now-stale status, routing to REFER instead.
+
+**Leaked internal variable name, found and fixed the same day.** The first live test of the override
+above surfaced a new bug: the final report's narrative literally cited `"status_override=MISMATCH"` and
+`"rule-check outputs"` verbatim — the redesigned judge (now able to actually check evidence, per Round 2
+above) correctly flagged this as unsupported, since those are implementation details, not evidence.
+Fixed by rewording branch B to explicitly forbid referencing internal field/variable names in output
+text (with an example plain-language phrasing to use instead), plus a new general "Output quality rules"
+bullet reinforcing the same constraint for any internal computed field, defense in depth. Verified live:
+re-triggering the same override path produced a report with no internal-field references, and the judge
+surfaced a different, genuine finding instead.
+
+**`RULE-DI-008`/`RULE-HE-005`/`RULE-LI-006`/`RULE-CI-007` wording bug, found via the fixed judge.** Once
+the judge could actually check evidence, it caught a real, reproducible bug: all 4 pre-existing-condition
+rules' `condition` text ("Policy text must confirm condition is not excluded") was being read overly
+literally — the model wanted an explicit confirmatory sentence in the policy text rather than checking
+`condition_is_pre_existing` directly, causing false `FAIL`s (and therefore false REJECTs) even when the
+field clearly said `false`. Reproduced twice on the same claim before concluding it wasn't just LLM
+variance. Fixed by rewording all 4 rules' `condition` field (a data-only Supabase change, no Dify edit
+needed) to point directly at the deterministic field; `RULE-LI-006`'s category gate (`death`/
+`total_permanent_disability` only) was preserved in the same update. Re-tested live: the rule now
+correctly `PASS`es.
+
+**`POST /assessment-logs` idempotency (2026-07-16/17).** `write_assessment_log` (all 4 workflows) has
+`retry_enabled: true` with no idempotency key — a slow or dropped response makes Dify silently resend
+the exact same completed request, creating a second governance record under a different `log_id`. Found
+live: a stray duplicate survived several rounds of manual cleanup because each cleanup only ever deleted
+the specific `log_id` captured from that call's own response, never a full sweep — the duplicate was
+never queried for directly, only found because Jasbir spot-checked the Audit Log herself and asked "are
+you sure?". Fixed with a dedup check before insert: an exact match on `claim_id` + all 4 judge sub-scores
+within a 120-second window reliably signals a retry (a genuine second assessment won't have identical
+judge scores, since that call isn't deterministic) — on match, returns the existing row instead of
+inserting a duplicate. Verified: two identical POSTs produce one row; two genuinely different assessments
+of the same claim both persist correctly.
+
+**`prompt_version` bumped to v1.2** to reflect this whole round of changes (judge documents grounding,
+status-override feature, the leak fix, `judge_comments` persistence, the target-leakage fix) — same
+mechanism as the v1.1 bump (§7, §9), Dify still sends the unchanged hardcoded `_v1.0` default.
 
 ---
 
@@ -1516,6 +1588,12 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | `judge_comments` persistence | ✅ Done | The judge's qualitative reasoning per score was computed on every assessment but never sent past Dify at all — `write_assessment_log`'s body never referenced it. Now logged as an MLflow artifact (not a new `assessment_logs` column) alongside `rule_checks`. Required a small Dify edit (one field added to `prepare_assessment_log_payload`'s output + `write_assessment_log`'s body, all 4 workflows) — the one fix this session that couldn't be done server-side only, since the MCP server has zero visibility into a field Dify never sent it |
 | Eligibility-rules coverage review (Phases 1-3) | ✅ Done | Full review of all 24 (then-existing) rules against the 8 synthetic `rejection_reason` categories found real, precisely-scoped gaps (§7). **Phase 1:** 6 new rules added (`RULE-LI-006/007/008`, `RULE-CI-007`, `RULE-DI-008`, `RULE-HE-007`) — zero Dify changes needed, rules fetched dynamically. **Phase 2:** `backfill_claim_evidence_v2.py` backfills the data those rules need (diagnosis/pre-existing for life/CI/disability, documents for health and life's death/TPD categories) — consistency-aware, not just presence-filling. **Phase 3:** `fix_rejection_reasons.py` corrects the 227 already-generated rejected claims to match the real rule set (61 reassigned, 17 contradicting documents removed) and `generate_data.py` fixed for future correctness (domain-and-category-aware pool, not one shared list). Verified: 0 mismatches/contradictions remain across all 227 rejected claims. Committed `bb395e1` |
 | Target-leakage fix (`claim_record_json`) | ✅ Done | `status`/`rejection_reason` — the claim's outcome, not evidence — were included in the single variable feeding all 5 downstream LLM nodes, discovered via a real incident where the rule-checker deferred to a stale status over a genuinely-present document. Fixed at the one choke point (`extract_claims_fields`), all 4 workflows, verified live (§9) |
+| Judge documents grounding fix | ✅ Done | `llm_judge` never received `claim_documents` at all (only claim/policy records) — systematically flagged accurate, document-cited evidence as unsupported. Fixed by adding the same document reference already used by the rule-checker. Verified live — the fixed judge went on to catch two genuinely new real bugs on its very next runs (§13) |
+| Status cross-check override | ✅ Done | New deterministic `check_status_consistency` node + one new branch in `synthesize_final_verdict`'s decision table — a rule-clean claim whose recorded status says `rejected` now forces `REFER_FOR_FURTHER_REVIEW` instead of silently approving. Verified live, including a real demonstration of the safety property: correctly refused to flip to APPROVE against a status a buggy earlier run had wrongly written back (§13) |
+| Internal-field-name leak fix | ✅ Done | The override's first live run leaked `"status_override=MISMATCH"` verbatim into the final report's narrative — caught by the newly-fixed judge. Fixed by explicitly forbidding internal field/variable names in output text, all 4 workflows. Verified live (§13) |
+| `RULE-HE-005`/`RULE-LI-006`/`RULE-CI-007`/`RULE-DI-008` wording fix | ✅ Done | Found via the fixed judge: all 4 pre-existing-condition rules were reproducibly misread, causing false REJECTs even when `condition_is_pre_existing=false`. Data-only fix (rule `condition` text), no Dify edit needed. Re-tested live, confirmed `PASS` (§7, §13) |
+| `POST /assessment-logs` idempotency | ✅ Done | `write_assessment_log` has `retry_enabled: true` with no idempotency key — found live when a stray duplicate governance record survived several rounds of manual cleanup. Fixed with a dedup check (claim_id + all 4 judge sub-scores, 120s window). Committed `06f17cc` |
+| `prompt_version` bumped to v1.2 | ✅ Done | Reflects the whole round of judge/verdict changes above. Committed `daba52a` |
 | **Deploy gap:** write-back/cross-check not yet live on Render | 🔲 Open | Same pattern as the Storage/snapshot deploy gap above — local MCP server only until the latest `main` is deployed |
 | UAT + SUS | 🔲 July 2026 | AIA Technology team, target SUS > 68 |
 | Final report | 🔲 July 2026 | Deadline 19 July 2026 |
@@ -1532,6 +1610,7 @@ Any financial institution deploying agentic AI can apply these six layers regard
 | **Done (2026-07-13/14)** | Whole-file workflow version history (`dsl-governance-history` GitHub branch); migrated DSL "current version" source of truth from local disk to a new private Supabase Storage bucket (`dify-workflows`), `dify-data/` kept as a frozen historical artifact only; node-level snapshot-vs-current comparison; workflow upload page (Storage-backed, no manual file placement); 12-item governance review pass (5+4 approved, 7 rejected, real GitHub commits). Committed `7982d70` + `983b561`. Not yet deployed to Render — local-only until env vars mirrored |
 | **Done (2026-07-14/15)** | `Explain_Assessment_Reasoning`/`Missing_Documentation_Advisor` integrated into the Audit Log frontend (`assessment_explanations`/`missing_documentation_checks` tables, 4 new MCP endpoints); fixed Explain's row-specificity bug (`log_id` threading) and a hallucination-risk-score interpretation bug; fixed a real Audit Log row-expansion bug (`log.id` → `log.log_id`); closed the `rule_checks` persistence logic gap across all 4 `*_Assess_Claim` workflows; consolidated 3 separate Audit Log columns into one "AI Insights" menu |
 | **Done (2026-07-16)** | LLM-as-Judge grounding redesign — judge now scores against real `claim_record`/`policy_record` with explicit rubric anchors, `judge_overall_score` computed deterministically (§13); caught and fixed a mid-build regression from editing a stale `dify-data/` copy, now documented as a standing gotcha (§14); Dashboard gained Rule Failure Analysis + Missing Documentation panels and fixed misleading KPI cards (distinct-claims count, trailing-50-run averages) (§16); DSL page's Workflow Snapshots tab no longer shows the `dify-data/` prefix; 56-claim backfill run across all 4 domains to seed fresh test data (55/56 succeeded, one transient 422 resolved on retry); `claims.status` write-back for pending claims + observe-only status cross-check for already-decided claims, both computed server-side with the Dify workflows deliberately left untouched (§7, §9, §10); new Dashboard "Status Cross-Check" panel (§16); Repeat-Assessment Consistency Dashboard panel, which surfaced a real `prompt_version`-staleness limitation while being validated against production data; Missing Documentation Advisor extended to document-related REJECT rows via `rule_checks.evidence_fields` (§7, §16); fixed `mlflow_run_id` (was 0/345 real rows populated — nothing in the live pipeline ever created an MLflow run) and the stale `prompt_version` default, both server-side, MLflow logging as a `BackgroundTask` after discovering it took 13+ seconds even warm (§7, §10); `judge_comments` persistence via MLflow artifact (§10, §13); full eligibility-rules coverage review — 6 new rules, a two-domain-wider backfill (`backfill_claim_evidence_v2.py`), and a rejection-reason correction pass across all 227 rejected claims (§7, §8, §20); target-leakage fix removing `status`/`rejection_reason` from `claim_record_json`, the single variable feeding all 5 assessment LLM nodes (§9) |
+| **Done (2026-07-17)** | Judge documents grounding fix (§13) — the fixed judge went on to catch two genuinely new bugs on its next live runs: a leaked internal `status_override`/`MISMATCH` reference in the final report's narrative, and a reproducible false-REJECT wording bug across all 4 pre-existing-condition rules (§7, §13), both fixed and re-verified live same day. New status cross-check override — a rule-clean claim disagreeing with its recorded status now forces REFER_FOR_FURTHER_REVIEW instead of silently approving, verified live including a real case where it correctly refused to trust a status a buggy earlier run had wrongly written back (§13). `POST /assessment-logs` idempotency added after a stray duplicate governance record survived several rounds of manual cleanup — found only because Jasbir spot-checked the Audit Log herself (§10, §13). `prompt_version` bumped to v1.2 |
 | **July 1-14** | UAT with AIA Technology team; SUS questionnaire |
 | **July 15-19** | Final report submission |
 
