@@ -52,7 +52,7 @@ workflow:
       number_limits: 3
     opening_statement: ''
     retriever_resource:
-      enabled: true
+      enabled: false
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
@@ -384,11 +384,11 @@ workflow:
       height: 135
       id: '1778956618758'
       position:
-        x: 546.5644956674633
-        y: 895.2793396033829
+        x: 0
+        y: 161.3333333333333
       positionAbsolute:
-        x: 546.5644956674633
-        y: 895.2793396033829
+        x: 0
+        y: 161.3333333333333
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -421,11 +421,11 @@ workflow:
       height: 138
       id: '1779135995524'
       position:
-        x: 1287.7450321411343
-        y: 902.1591804527927
+        x: 684
+        y: 190.99999999999994
       positionAbsolute:
-        x: 1287.7450321411343
-        y: 902.1591804527927
+        x: 684
+        y: 190.99999999999994
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -461,11 +461,11 @@ workflow:
       height: 138
       id: '17791384433540'
       position:
-        x: 1939.1733408930736
-        y: 891.4985450917181
+        x: 1730
+        y: 0
       positionAbsolute:
-        x: 1939.1733408930736
-        y: 891.4985450917181
+        x: 1730
+        y: 0
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -522,11 +522,11 @@ workflow:
       height: 52
       id: '1779138546683'
       position:
-        x: 1639.1733408930736
-        y: 891.4985450917181
+        x: 1026
+        y: 257
       positionAbsolute:
-        x: 1639.1733408930736
-        y: 891.4985450917181
+        x: 1026
+        y: 257
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -562,11 +562,11 @@ workflow:
       height: 138
       id: '17792013939140'
       position:
-        x: 2563.9002568322107
-        y: 891.4985450917181
+        x: 2414
+        y: 31.66666666666667
       positionAbsolute:
-        x: 2563.9002568322107
-        y: 891.4985450917181
+        x: 2414
+        y: 31.66666666666667
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -713,11 +713,11 @@ workflow:
       height: 88
       id: '1779201495095'
       position:
-        x: 2867.0052626421407
-        y: 891.4985450917181
+        x: 2776
+        y: 223.83333333333323
       positionAbsolute:
-        x: 2867.0052626421407
-        y: 891.4985450917181
+        x: 2776
+        y: 223.83333333333323
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -798,11 +798,11 @@ workflow:
       height: 88
       id: '1779201857626'
       position:
-        x: 3167.9002568322107
-        y: 891.4985450917181
+        x: 3460
+        y: 247.16666666666663
       positionAbsolute:
-        x: 3167.9002568322107
-        y: 891.4985450917181
+        x: 3460
+        y: 247.16666666666663
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -949,11 +949,11 @@ workflow:
       height: 88
       id: '1779202255611'
       position:
-        x: 3469.9002568322107
-        y: 891.4985450917181
+        x: 3802
+        y: 261.83333333333326
       positionAbsolute:
-        x: 3469.9002568322107
-        y: 891.4985450917181
+        x: 3802
+        y: 261.83333333333326
       selected: true
       sourcePosition: right
       targetPosition: left
@@ -1021,11 +1021,11 @@ workflow:
       height: 88
       id: '1779204035193'
       position:
-        x: 3774.194639337831
-        y: 891.4985450917181
+        x: 4144
+        y: 276.4999999999999
       positionAbsolute:
-        x: 3774.194639337831
-        y: 891.4985450917181
+        x: 4144
+        y: 276.4999999999999
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1046,14 +1046,14 @@ workflow:
         selected: false
         title: final_report_answer
         type: end
-      height: 88
+      height: 114
       id: '1779204961211'
       position:
-        x: 5873.90025683221
-        y: 891.4985450917181
+        x: 6558
+        y: 411.83333333333337
       positionAbsolute:
-        x: 5873.90025683221
-        y: 891.4985450917181
+        x: 6558
+        y: 411.83333333333337
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1113,11 +1113,11 @@ workflow:
       height: 52
       id: '1779208212182'
       position:
-        x: 2263.9002568322107
-        y: 891.4985450917181
+        x: 2072
+        y: 66
       positionAbsolute:
-        x: 2263.9002568322107
-        y: 891.4985450917181
+        x: 2072
+        y: 66
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1251,11 +1251,11 @@ workflow:
       height: 88
       id: '1780337740183'
       position:
-        x: 4073.9002568322107
-        y: 891.4985450917181
+        x: 4486
+        y: 291.16666666666663
       positionAbsolute:
-        x: 4073.9002568322107
-        y: 891.4985450917181
+        x: 4486
+        y: 291.16666666666663
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1290,11 +1290,11 @@ workflow:
       height: 52
       id: '1780337744907'
       position:
-        x: 5573.90025683221
-        y: 891.4985450917181
+        x: 6196
+        y: 384.83333333333337
       positionAbsolute:
-        x: 5573.90025683221
-        y: 891.4985450917181
+        x: 6196
+        y: 384.83333333333337
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1328,11 +1328,11 @@ workflow:
       height: 52
       id: '1780461414069'
       position:
-        x: 887.3679059224817
-        y: 916.2793396033829
+        x: 342
+        y: 225.3333333333333
       positionAbsolute:
-        x: 887.3679059224817
-        y: 916.2793396033829
+        x: 342
+        y: 225.3333333333333
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1451,11 +1451,11 @@ workflow:
       height: 88
       id: '1781466482947'
       position:
-        x: 4373.90025683221
-        y: 891.4985450917181
+        x: 4828
+        y: 305.83333333333326
       positionAbsolute:
-        x: 4373.90025683221
-        y: 891.4985450917181
+        x: 4828
+        y: 305.83333333333326
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1485,37 +1485,42 @@ workflow:
       height: 52
       id: '1781467500000'
       position:
-        x: 4523.90025683221
-        y: 891.4985450917181
+        x: 4978
+        y: 305.83333333333326
       positionAbsolute:
-        x: 4523.90025683221
-        y: 891.4985450917181
+        x: 4978
+        y: 305.83333333333326
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "def _to_int_str(v, default=\"0\"):\n    try:\n        return str(int(v))\n    except Exception:\n\
-          \        return default\n\ndef _to_float_str(v, default=\"\"):\n    try:\n        return str(float(v))\n\
-          \    except Exception:\n        return default\n\ndef _to_str(v, default=\"\"):\n    return\
-          \ default if v is None else str(v)\n\ndef main(\n    claim_id,\n    verdict,\n    judge,\n \
-          \   judge_overall_score=None,\n    workflow_type=\"life_assess_claim\",\n    model_version=\"\
-          gpt-5.2\",\n    prompt_version=\"life_assess_claim_v1.0\",\n    mlflow_run_id=\"\"\n):\n   \
-          \ verdict = verdict or {}\n    judge = judge or {}\n\n    return {\n        \"claim_id\": _to_str(claim_id,\
-          \ \"\"),\n        \"workflow_type\": _to_str(workflow_type, \"life_assess_claim\"),\n      \
-          \  \"recommendation\": _to_str(verdict.get(\"recommendation\", \"\"), \"\"),\n        \"confidence_level\"\
-          : _to_str(verdict.get(\"confidence_level\", \"\"), \"\"),\n        \"mandatory_rules_failed\"\
-          : _to_int_str(verdict.get(\"mandatory_rules_failed\", 0), \"0\"),\n        \"total_rules_passed\"\
-          : _to_int_str(verdict.get(\"total_rules_passed\", 0), \"0\"),\n        \"coverage_conclusion\"\
-          : _to_str(verdict.get(\"coverage_conclusion\", \"\"), \"\"),\n        \"model_version\": _to_str(model_version,\
-          \ \"gpt-5.2\"),\n        \"prompt_version\": _to_str(prompt_version, \"life_assess_claim_v1.0\"\
-          ),\n        \"mlflow_run_id\": _to_str(mlflow_run_id, \"\"),  # avoid None for String output\n\
-          \        \"judge_completeness_score\": _to_float_str(judge.get(\"judge_completeness_score\"\
-          ), \"\"),\n        \"judge_consistency_score\": _to_float_str(judge.get(\"judge_consistency_score\"\
-          ), \"\"),\n        \"judge_hallucination_risk_score\": _to_float_str(judge.get(\"judge_hallucination_risk_score\"\
-          ), \"\"),\n        \"judge_clarity_score\": _to_float_str(judge.get(\"judge_clarity_score\"\
-          ), \"\"),\n        \"judge_overall_score\": _to_float_str(judge_overall_score, \"\")\n    }\n"
+        code: "import json\n\ndef _to_int_str(v, default=\"0\"):\n    try:\n        return str(int(v))\n\
+          \    except Exception:\n        return default\n\ndef _to_float_str(v, default=\"\"):\n    try:\n\
+          \        return str(float(v))\n    except Exception:\n        return default\n\ndef _to_str(v,\
+          \ default=\"\"):\n    return default if v is None else str(v)\n\ndef main(\n    claim_id,\n\
+          \    verdict,\n    judge,\n    workflow_type=\"life_assess_claim\",\n    model_version=\"gpt-5.2\"\
+          ,\n    prompt_version=\"life_assess_claim_v1.0\",\n    mlflow_run_id=\"\",\n    rule_check_output=None,\n\
+          \    judge_overall_score=None\n):\n    verdict = verdict or {}\n    judge = judge or {}\n\n\
+          \    def _to_obj(v):\n        if isinstance(v, dict):\n            return v\n        if isinstance(v,\
+          \ str):\n            try:\n                return json.loads(v)\n            except Exception:\n\
+          \                return {}\n        return {}\n\n    rule_checks = _to_obj(rule_check_output).get(\"\
+          rule_checks\", []) or []\n\n    return {\n        \"claim_id\": _to_str(claim_id, \"\"),\n \
+          \       \"rule_checks\": json.dumps(rule_checks, ensure_ascii=False),\n        \"workflow_type\"\
+          : _to_str(workflow_type, \"life_assess_claim\"),\n        \"recommendation\": _to_str(verdict.get(\"\
+          recommendation\", \"\"), \"\"),\n        \"confidence_level\": _to_str(verdict.get(\"confidence_level\"\
+          , \"\"), \"\"),\n        \"mandatory_rules_failed\": _to_int_str(verdict.get(\"mandatory_rules_failed\"\
+          , 0), \"0\"),\n        \"total_rules_passed\": _to_int_str(verdict.get(\"total_rules_passed\"\
+          , 0), \"0\"),\n        \"coverage_conclusion\": _to_str(verdict.get(\"coverage_conclusion\"\
+          , \"\"), \"\"),\n        \"model_version\": _to_str(model_version, \"gpt-5.2\"),\n        \"\
+          prompt_version\": _to_str(prompt_version, \"life_assess_claim_v1.0\"),\n        \"mlflow_run_id\"\
+          : _to_str(mlflow_run_id, \"\"),  # avoid None for String output\n        \"judge_completeness_score\"\
+          : _to_float_str(judge.get(\"judge_completeness_score\"), \"\"),\n        \"judge_consistency_score\"\
+          : _to_float_str(judge.get(\"judge_consistency_score\"), \"\"),\n        \"judge_hallucination_risk_score\"\
+          : _to_float_str(judge.get(\"judge_hallucination_risk_score\"), \"\"),\n        \"judge_clarity_score\"\
+          : _to_float_str(judge.get(\"judge_clarity_score\"), \"\"),\n        \"judge_overall_score\"\
+          : _to_float_str(judge_overall_score, \"\")\n    }"
         code_language: python3
         outputs:
           claim_id:
@@ -1557,6 +1562,9 @@ workflow:
           recommendation:
             children: null
             type: string
+          rule_checks:
+            children: null
+            type: string
           total_rules_passed:
             children: null
             type: string
@@ -1583,6 +1591,11 @@ workflow:
           value_type: object
           variable: judge
         - value_selector:
+          - '1779201495095'
+          - structured_output
+          value_type: string
+          variable: rule_check_output
+        - value_selector:
           - '1781467500000'
           - judge_overall_score
           value_type: number
@@ -1590,11 +1603,11 @@ workflow:
       height: 52
       id: '1781468605100'
       position:
-        x: 4673.90025683221
-        y: 891.4985450917181
+        x: 5170
+        y: 338.5
       positionAbsolute:
-        x: 4673.90025683221
-        y: 891.4985450917181
+        x: 5170
+        y: 338.5
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1618,7 +1631,8 @@ workflow:
               : {{#1781468605100.judge_completeness_score#}},\n  \"judge_consistency_score\": {{#1781468605100.judge_consistency_score#}},\n\
               \  \"judge_hallucination_risk_score\": {{#1781468605100.judge_hallucination_risk_score#}},\n\
               \  \"judge_clarity_score\": {{#1781468605100.judge_clarity_score#}},\n  \"judge_overall_score\"\
-              : {{#1781468605100.judge_overall_score#}}\n}"
+              : {{#1781468605100.judge_overall_score#}},\n  \"rule_checks\": {{#1781468605100.rule_checks#}}\n\
+              }"
           type: json
         headers: Content-Type:application/json
         method: post
@@ -1640,11 +1654,11 @@ workflow:
       height: 138
       id: '1781468824586'
       position:
-        x: 4973.90025683221
-        y: 891.4985450917181
+        x: 5512
+        y: 304.16666666666663
       positionAbsolute:
-        x: 4973.90025683221
-        y: 891.4985450917181
+        x: 5512
+        y: 304.16666666666663
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -1782,11 +1796,11 @@ workflow:
       height: 88
       id: '1781469231691'
       position:
-        x: 5273.90025683221
-        y: 891.4985450917181
+        x: 5854
+        y: 352.16666666666663
       positionAbsolute:
-        x: 5273.90025683221
-        y: 891.4985450917181
+        x: 5854
+        y: 352.16666666666663
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1822,11 +1836,11 @@ workflow:
       height: 138
       id: '1783700010100'
       position:
-        x: 1187.3679059224817
-        y: 1166.279339603383
+        x: 2414
+        y: 249.66666666666663
       positionAbsolute:
-        x: 1187.3679059224817
-        y: 1166.279339603383
+        x: 2414
+        y: 249.66666666666663
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1848,14 +1862,14 @@ workflow:
         selected: false
         title: domain_check
         type: if-else
-      height: 126
+      height: 148
       id: '1783900011100'
       position:
-        x: 1839.1733408930736
-        y: 891.4985450917181
+        x: 1368
+        y: 228.66666666666663
       positionAbsolute:
-        x: 1839.1733408930736
-        y: 891.4985450917181
+        x: 1368
+        y: 228.66666666666663
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1901,11 +1915,11 @@ workflow:
       height: 52
       id: '1783900011200'
       position:
-        x: 2139.1733408930736
-        y: 1091.4985450917181
+        x: 2414
+        y: 474.4999999999999
       positionAbsolute:
-        x: 2139.1733408930736
-        y: 1091.4985450917181
+        x: 2414
+        y: 474.4999999999999
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1925,18 +1939,18 @@ workflow:
           \        \"all_not_applicable\": all_not_applicable,\n    }\n"
         code_language: python3
         outputs:
-          mandatory_rules_failed:
+          all_not_applicable:
             children: null
-            type: number
-          total_rules_passed:
+            type: boolean
+          mandatory_rules_failed:
             children: null
             type: number
           mandatory_unknown_count:
             children: null
             type: number
-          all_not_applicable:
+          total_rules_passed:
             children: null
-            type: boolean
+            type: number
         selected: false
         title: compute_rule_counts
         type: code
@@ -1949,18 +1963,18 @@ workflow:
       height: 52
       id: '178400001100'
       position:
-        x: 2867.0052626421407
-        y: 1091.4985450917181
+        x: 3118
+        y: 256.4999999999999
       positionAbsolute:
-        x: 2867.0052626421407
-        y: 1091.4985450917181
+        x: 3118
+        y: 256.4999999999999
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: -4413.753109563258
-      y: -338.50600689967644
-      zoom: 0.8450104076026902
+      x: 27.428571428571445
+      y: 478.57142857142856
+      zoom: 0.25
   rag_pipeline_variables: []
