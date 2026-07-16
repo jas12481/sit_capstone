@@ -1520,7 +1520,8 @@ workflow:
           : _to_float_str(judge.get(\"judge_consistency_score\"), \"\"),\n        \"judge_hallucination_risk_score\"\
           : _to_float_str(judge.get(\"judge_hallucination_risk_score\"), \"\"),\n        \"judge_clarity_score\"\
           : _to_float_str(judge.get(\"judge_clarity_score\"), \"\"),\n        \"judge_overall_score\"\
-          : _to_float_str(judge_overall_score, \"\")\n    }"
+          : _to_float_str(judge_overall_score, \"\"),\n        \"judge_comments\": _to_str(judge.get(\"\
+          judge_comments\"), \"\")\n    }"
         code_language: python3
         outputs:
           claim_id:
@@ -1569,6 +1570,9 @@ workflow:
             children: null
             type: string
           workflow_type:
+            children: null
+            type: string
+          judge_comments:
             children: null
             type: string
         selected: false
@@ -1631,8 +1635,8 @@ workflow:
               : {{#1781468605100.judge_completeness_score#}},\n  \"judge_consistency_score\": {{#1781468605100.judge_consistency_score#}},\n\
               \  \"judge_hallucination_risk_score\": {{#1781468605100.judge_hallucination_risk_score#}},\n\
               \  \"judge_clarity_score\": {{#1781468605100.judge_clarity_score#}},\n  \"judge_overall_score\"\
-              : {{#1781468605100.judge_overall_score#}},\n  \"rule_checks\": {{#1781468605100.rule_checks#}}\n\
-              }"
+              : {{#1781468605100.judge_overall_score#}},\n  \"rule_checks\": {{#1781468605100.rule_checks#}},\n\
+              \  \"judge_comments\": {{#1781468605100.judge_comments#}}\n}"
           type: json
         headers: Content-Type:application/json
         method: post
