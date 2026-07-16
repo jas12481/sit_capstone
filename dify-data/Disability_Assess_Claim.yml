@@ -482,8 +482,9 @@ workflow:
           : c.get(\"status\", \"\"),\n        \"claim_type\": c.get(\"claim_type\", \"\"),\n        \"\
           claim_category\": c.get(\"claim_category\", \"\"),\n        \"claim_amount\": \"\" if c.get(\"\
           claim_amount\") is None else str(c.get(\"claim_amount\")),\n        \"incident_date\": c.get(\"\
-          incident_date\", \"\"),\n        \"claim_record_json\": json.dumps(c, ensure_ascii=False)\n\
-          \    }"
+          incident_date\", \"\"),\n        \"claim_record_json\": json.dumps(\n            {k: v for k,\
+          \ v in c.items() if k not in (\"status\", \"rejection_reason\")},\n            ensure_ascii=False\n\
+          \        )\n    }"
         code_language: python3
         outputs:
           claim_amount:
