@@ -3,7 +3,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import Optional, List, Union
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import concurrent.futures
 import json
@@ -464,6 +464,34 @@ def create_assessment_log(
     # background task below, which needs the full picture.
     mlflow_data = dict(data)
     data.pop("judge_comments", None)
+
+    # Idempotency: write_assessment_log (all 4 *_Assess_Claim workflows) has
+    # retry_enabled=true with no idempotency key — if this endpoint's response is slow or
+    # dropped, Dify silently resends the exact same completed request, creating a second
+    # governance record for the same real assessment with a different log_id. Found live
+    # (2026-07-16/17): a stray duplicate survived several rounds of manual cleanup because
+    # each cleanup only ever deleted the specific log_id captured from that call's own
+    # response, never a full sweep. A genuine second assessment of the same claim — even
+    # seconds apart — will not have identical judge scores (the judge call isn't
+    # deterministic, confirmed repeatedly this session), so an exact match on claim_id +
+    # all 4 judge sub-scores within a short window reliably signals a retry, not a new run.
+    claim_id_for_dedup = data.get("claim_id")
+    judge_score_keys = ("judge_completeness_score", "judge_consistency_score", "judge_hallucination_risk_score", "judge_clarity_score")
+    if claim_id_for_dedup and all(k in data for k in judge_score_keys):
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+            dup_query = supabase.table("assessment_logs").select("*").eq("claim_id", claim_id_for_dedup)
+            for k in judge_score_keys:
+                dup_query = dup_query.eq(k, data[k])
+            dup_check = dup_query.gte("assessed_at", cutoff).order("assessed_at", desc=True).limit(1).execute()
+            if dup_check.data:
+                print(f"Duplicate assessment detected for {claim_id_for_dedup} "
+                      f"(matches log_id {dup_check.data[0]['log_id']} within 120s) — "
+                      f"skipping insert, likely a Dify retry")
+                return dup_check.data[0]
+        except Exception as exc:  # noqa: BLE001
+            # Never let the idempotency check itself block a genuine write.
+            print(f"Idempotency check failed for {claim_id_for_dedup}: {exc}")
 
     response = supabase.table("assessment_logs").insert(data).execute()
     if not response.data:
