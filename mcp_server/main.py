@@ -320,6 +320,13 @@ class AssessmentLogCreate(BaseModel):
     # endpoint), not the JSON string its code node's declared output type implied,
     # so the backend has to tolerate both rather than assume one shape.
     rule_checks: Optional[Union[str, List[dict]]] = None
+    # The judge's qualitative reasoning per score — previously computed by llm_judge on
+    # every assessment but never sent past Dify at all (write_assessment_log's body never
+    # referenced it), so there was no way to see WHY a hallucination-risk/consistency score
+    # landed where it did without re-running the assessment live. Not a new assessment_logs
+    # column — logged as an MLflow artifact instead (see _log_assessment_to_mlflow_and_persist),
+    # popped out of `data` before the Supabase insert since that table has no matching column.
+    judge_comments: Optional[str] = None
 
 
 CLAIM_STATUS_FROM_RECOMMENDATION = {
@@ -405,7 +412,10 @@ def _log_assessment_to_mlflow_and_persist(data: dict, log_id: str) -> None:
             judge_clarity_score=data.get("judge_clarity_score"),
             judge_overall_score=data.get("judge_overall_score"),
             tags={"run_type": "production_assessment"},
-            artifacts={"rule_checks": data["rule_checks"]} if data.get("rule_checks") else {},
+            artifacts={
+                **({"rule_checks": data["rule_checks"]} if data.get("rule_checks") else {}),
+                **({"judge_comments": data["judge_comments"]} if data.get("judge_comments") else {}),
+            },
         )
         mlflow_run_id = tracker.log_assessment_run(payload)
         if mlflow_run_id:
@@ -449,6 +459,12 @@ def create_assessment_log(
     if data.get("prompt_version") in PROMPT_VERSION_BUMPS:
         data["prompt_version"] = PROMPT_VERSION_BUMPS[data["prompt_version"]]
 
+    # judge_comments has no assessment_logs column (logged to MLflow as an artifact
+    # instead) — pop it out before the insert, but keep it in mlflow_data for the
+    # background task below, which needs the full picture.
+    mlflow_data = dict(data)
+    data.pop("judge_comments", None)
+
     response = supabase.table("assessment_logs").insert(data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to write assessment log")
@@ -459,7 +475,7 @@ def create_assessment_log(
     # will not be present on the immediate response; a subsequent GET on this log_id will
     # have it once the background task completes, same as status_cross_check below.
     if result.get("log_id"):
-        background_tasks.add_task(_log_assessment_to_mlflow_and_persist, data, result["log_id"])
+        background_tasks.add_task(_log_assessment_to_mlflow_and_persist, mlflow_data, result["log_id"])
 
     # Write-back (pending claims) / status cross-check (already-decided claims) — mutually
     # exclusive by construction, matching "claim intake" vs. "audit re-check" semantics.
