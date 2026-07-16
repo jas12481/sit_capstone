@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, BackgroundTasks
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -328,6 +328,91 @@ CLAIM_STATUS_FROM_RECOMMENDATION = {
     "REFER_FOR_FURTHER_REVIEW": "under_review",
 }
 
+# prompt_version is a static default baked into each *_Assess_Claim workflow's
+# prepare_assessment_log_payload code node (e.g. prompt_version="life_assess_claim_v1.0")
+# — it's never bumped by Dify itself when the underlying prompt actually changes, so two
+# assessments a week apart under genuinely different prompts still report the same label.
+# Rather than editing the Dify workflows to fix this (deliberately avoided per the same
+# design-boundary reasoning as skip_status_update — see PROJECT_CONTEXT.md §9), this
+# overrides the known-stale default server-side, effective from whenever an entry is added
+# here forward. Add a new entry (old_value -> new_value) here as part of any future session
+# that ships a real prompt/logic change to one of these workflows — this is the ongoing
+# process replacing an automatic version bump. Historical rows before an entry existed keep
+# their original (possibly stale) label; not retroactively rewritten, since reconstructing
+# exact historical change boundaries from timestamps alone would be guesswork.
+PROMPT_VERSION_BUMPS = {
+    # 2026-07-16: LLM-as-judge grounding redesign (claim/policy-grounded scoring, rubric
+    # anchors, deterministic judge_overall_score) — see PROJECT_CONTEXT.md §13.
+    "life_assess_claim_v1.0": "life_assess_claim_v1.1",
+    "health_assess_claim_v1.0": "health_assess_claim_v1.1",
+    "ci_assess_claim_v1.0": "ci_assess_claim_v1.1",
+    "disability_assess_claim_v1.0": "disability_assess_claim_v1.1",
+}
+
+_mlflow_tracker = None
+
+
+def _get_mlflow_tracker():
+    """Lazily-initialized, process-wide singleton — MLflowTracker.initialize() makes a
+    Databricks API call to resolve the experiment path, so this must happen once per
+    process, not once per assessment-log write."""
+    global _mlflow_tracker
+    if _mlflow_tracker is None:
+        from mlflow_tracker import MLflowTracker
+        tracker = MLflowTracker()
+        try:
+            tracker.initialize()
+        except Exception as exc:  # noqa: BLE001
+            print(f"MLflowTracker initialize failed: {exc}")
+        _mlflow_tracker = tracker
+    return _mlflow_tracker
+
+
+def _log_assessment_to_mlflow_and_persist(data: dict, log_id: str) -> None:
+    """
+    Creates a real MLflow run for a production assessment and stashes its run_id back onto
+    the assessment_logs row. This is what assessment_logs.mlflow_run_id is supposed to point
+    at (PROJECT_CONTEXT.md §12); previously nothing in the live Dify pipeline ever created
+    this run at all, so the column was always empty for real assessments (only the separate
+    evaluation harness created its own, disconnected MLflow runs).
+
+    Runs as a FastAPI BackgroundTask, after the response is already sent — a real Databricks
+    round-trip (start_run + several log_param/log_metric calls) measured at 13+ seconds even
+    with a warm tracker, which must never block the actual governance record write or a
+    claims officer waiting on a chat response. Same reasoning as the write-back/cross-check
+    being isolated from the core insert, just async instead of synchronous since this one is
+    slow rather than merely non-essential.
+    """
+    try:
+        from mlflow_tracker import AssessmentRunPayload
+        tracker = _get_mlflow_tracker()
+        if not tracker.is_ready():
+            return
+        payload = AssessmentRunPayload(
+            run_name=f"{data.get('workflow_type', 'assessment')}_{data.get('claim_id', 'unknown')}",
+            workflow_type=data.get("workflow_type", "unknown"),
+            model_name=data.get("model_version", "gpt-5.2"),
+            prompt_version=data.get("prompt_version"),
+            claim_id=data.get("claim_id"),
+            recommendation=data.get("recommendation"),
+            confidence_level=data.get("confidence_level"),
+            coverage_conclusion=data.get("coverage_conclusion"),
+            mandatory_rules_failed=data.get("mandatory_rules_failed"),
+            total_rules_passed=data.get("total_rules_passed"),
+            judge_completeness_score=data.get("judge_completeness_score"),
+            judge_consistency_score=data.get("judge_consistency_score"),
+            judge_hallucination_risk_score=data.get("judge_hallucination_risk_score"),
+            judge_clarity_score=data.get("judge_clarity_score"),
+            judge_overall_score=data.get("judge_overall_score"),
+            tags={"run_type": "production_assessment"},
+            artifacts={"rule_checks": data["rule_checks"]} if data.get("rule_checks") else {},
+        )
+        mlflow_run_id = tracker.log_assessment_run(payload)
+        if mlflow_run_id:
+            supabase.table("assessment_logs").update({"mlflow_run_id": mlflow_run_id}).eq("log_id", log_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        print(f"MLflow logging failed for log {log_id} ({data.get('claim_id')}): {exc}")
+
 
 def _derive_rejection_reason(rule_checks: Optional[list]) -> Optional[str]:
     """First mandatory-failed rule, formatted as '{rule_name}: {reason}' — the same
@@ -345,6 +430,7 @@ def _derive_rejection_reason(rule_checks: Optional[list]) -> Optional[str]:
 @app.post("/assessment-logs")
 def create_assessment_log(
     log: AssessmentLogCreate,
+    background_tasks: BackgroundTasks,
     skip_status_update: bool = Query(
         False,
         description="Skip writing the outcome back to claims.status — used by evaluation/backfill "
@@ -359,10 +445,21 @@ def create_assessment_log(
             # Don't let a malformed rule_checks payload block the actual
             # assessment log write — that's the core governance record.
             del data["rule_checks"]
+
+    if data.get("prompt_version") in PROMPT_VERSION_BUMPS:
+        data["prompt_version"] = PROMPT_VERSION_BUMPS[data["prompt_version"]]
+
     response = supabase.table("assessment_logs").insert(data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to write assessment log")
     result = response.data[0]
+
+    # MLflow logging is real Databricks network I/O (13+ seconds even warm) — scheduled to
+    # run after this response is returned, never blocking the core write. mlflow_run_id
+    # will not be present on the immediate response; a subsequent GET on this log_id will
+    # have it once the background task completes, same as status_cross_check below.
+    if result.get("log_id"):
+        background_tasks.add_task(_log_assessment_to_mlflow_and_persist, data, result["log_id"])
 
     # Write-back (pending claims) / status cross-check (already-decided claims) — mutually
     # exclusive by construction, matching "claim intake" vs. "audit re-check" semantics.

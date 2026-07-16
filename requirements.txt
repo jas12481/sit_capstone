@@ -6,3 +6,5 @@ pydantic
 requests
 pyyaml
 python-multipart
+mlflow
+databricks-sdk
