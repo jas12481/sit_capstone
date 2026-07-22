@@ -14,6 +14,7 @@ import {
   takeWorkflowSnapshot,
   getSnapshotNodeDiff,
   uploadWorkflowFile,
+  checkUploadDuplicate,
   type ChangeApproval,
   type WorkflowNode,
   type ScanSummary,
@@ -23,6 +24,7 @@ import {
   type SnapshotNodeDiff,
   type ChangedNode,
   type UploadResult,
+  type UploadDuplicateCheck,
 } from '@/lib/mcp';
 import { fmtDateTime } from '@/lib/fmt';
 
@@ -421,6 +423,8 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const [duplicateCheck, setDuplicateCheck] = useState<UploadDuplicateCheck | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
   const loadFiles = useCallback(async (selectName?: string) => {
     try {
@@ -442,6 +446,24 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
   const existingFileNames = files.map(f => f.split('/').pop());
   const uploadWouldOverwrite = uploadFileObj && existingFileNames.includes(uploadFileObj.name);
 
+  async function handleFileSelect(f: File | null) {
+    setUploadFileObj(f);
+    setUploadError('');
+    setUploadResult(null);
+    setDuplicateCheck(null);
+    if (!f) return;
+    setCheckingDuplicate(true);
+    try {
+      const check = await checkUploadDuplicate(f);
+      setDuplicateCheck(check);
+    } catch {
+      // Non-blocking pre-check — a failure here shouldn't stop the user from
+      // uploading, so just skip showing a duplicate warning.
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  }
+
   async function handleUpload() {
     if (!uploadFileObj) return;
     if (!verifiedName) {
@@ -455,6 +477,7 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
       const result = await uploadWorkflowFile(uploadFileObj, verifiedName);
       setUploadResult(result);
       setUploadFileObj(null);
+      setDuplicateCheck(null);
       await loadFiles(result.filename);
     } catch (e: unknown) {
       setUploadError(e instanceof Error ? e.message : 'Upload failed');
@@ -540,7 +563,7 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
           <input
             type="file"
             accept=".yml,.yaml"
-            onChange={e => { setUploadFileObj(e.target.files?.[0] ?? null); setUploadError(''); setUploadResult(null); }}
+            onChange={e => handleFileSelect(e.target.files?.[0] ?? null)}
             className="text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
           />
           <button
@@ -556,6 +579,20 @@ function SnapshotPanel({ verifiedName }: { verifiedName: string }) {
           <p className="mt-3 text-xs text-orange-600">
             &quot;{uploadFileObj?.name}&quot; already exists in the bucket — uploading will overwrite
             the current version. Take a snapshot first if you want to preserve what&apos;s there now.
+          </p>
+        )}
+
+        {checkingDuplicate && (
+          <p className="mt-3 text-xs text-gray-400">Checking for duplicate content…</p>
+        )}
+
+        {!checkingDuplicate && duplicateCheck?.duplicate_of && !uploading && (
+          <p className="mt-3 text-xs text-orange-600">
+            ⚠ This file&apos;s tracked node content (LLM/code/agent nodes) is identical to &quot;
+            {duplicateCheck.duplicate_of}&quot;, already in Storage. If this really is the same
+            workflow, consider re-uploading it as &quot;{duplicateCheck.duplicate_of}&quot; instead
+            to avoid a duplicate entry. If it differs in ways outside tracked nodes (layout, other
+            node types, workflow settings), this separate file is fine to keep.
           </p>
         )}
 

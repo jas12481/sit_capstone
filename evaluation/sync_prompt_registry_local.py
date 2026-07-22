@@ -47,8 +47,12 @@ def _init_databricks():
     mlflow.set_tracking_uri("databricks")
 
 
-def _read_all_from_databricks() -> dict[str, list[tuple[int, str]]]:
-    """Returns {local_name: [(version, template), ...]} sorted ascending by version."""
+def _read_all_from_databricks() -> dict[str, list[tuple[int, str, str, dict]]]:
+    """Returns {local_name: [(version, template, commit_message, tags), ...]} sorted ascending
+    by version. commit_message/tags are carried through so the local mirror's UI can actually
+    show what changed between versions, not just the raw text — a prompt registered with a
+    descriptive commit_message (e.g. "v1.2 update: ...") is meaningless in the local viewer if
+    that message never makes it across."""
     import mlflow.genai as genai
     from mlflow.tracking import MlflowClient
 
@@ -56,19 +60,19 @@ def _read_all_from_databricks() -> dict[str, list[tuple[int, str]]]:
     client = MlflowClient()
     remote_prompts = genai.search_prompts(filter_string="catalog = 'workspace' AND schema = 'default'")
 
-    out: dict[str, list[tuple[int, str]]] = {}
+    out: dict[str, list[tuple[int, str, str, dict]]] = {}
     for p in sorted(remote_prompts, key=lambda p: p.name):
         local_name = p.name[len(SOURCE_CATALOG_SCHEMA_PREFIX):] if p.name.startswith(SOURCE_CATALOG_SCHEMA_PREFIX) else p.name
         versions = sorted(v.version for v in client.search_prompt_versions(p.name))
         entries = []
         for v in versions:
             loaded = genai.load_prompt(p.name, version=v)
-            entries.append((v, loaded.template))
+            entries.append((v, loaded.template, loaded.commit_message or "", loaded.tags or {}))
         out[local_name] = entries
     return out
 
 
-def _write_all_to_local(data: dict[str, list[tuple[int, str]]], local_uri: str) -> None:
+def _write_all_to_local(data: dict[str, list[tuple[int, str, str, dict]]], local_uri: str) -> None:
     import mlflow
     import mlflow.genai as genai
 
@@ -76,8 +80,8 @@ def _write_all_to_local(data: dict[str, list[tuple[int, str]]], local_uri: str) 
 
     total_versions = 0
     for i, (name, entries) in enumerate(sorted(data.items()), start=1):
-        for version, template in entries:
-            genai.register_prompt(name=name, template=template)
+        for version, template, commit_message, tags in entries:
+            genai.register_prompt(name=name, template=template, commit_message=commit_message, tags=tags)
             total_versions += 1
         print(f"  [{i}/{len(data)}] {name}  ({len(entries)} version(s) replayed)")
     print(f"\nDone. {len(data)} prompts, {total_versions} versions written to {local_uri}")

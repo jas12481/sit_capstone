@@ -378,7 +378,26 @@ export type UploadResult = {
   node_count: number;
   workflow_name: string;
   uploaded_by: string;
+  duplicate_of: string | null;
 };
+
+export type UploadDuplicateCheck = {
+  filename: string;
+  node_count: number;
+  workflow_name: string;
+  duplicate_of: string | null;
+};
+
+export async function checkUploadDuplicate(file: File): Promise<UploadDuplicateCheck> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE}/dsl/upload/check-duplicate`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `MCP POST /dsl/upload/check-duplicate → ${res.status}`);
+  }
+  return res.json();
+}
 
 export async function uploadWorkflowFile(file: File, uploaded_by: string): Promise<UploadResult> {
   const form = new FormData();

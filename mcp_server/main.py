@@ -786,6 +786,75 @@ def _download_and_parse_workflow(name: str) -> tuple[str, Optional[list], Option
         return name, None, str(exc)
 
 
+def _parse_upload_or_400(content: bytes, filename: str) -> list:
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    try:
+        return parse_workflow_content(
+            content.decode("utf-8"), workflow_name_fallback=Path(filename).stem
+        )
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File is not valid UTF-8 text")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Not valid Dify DSL YAML: {exc}")
+
+
+def _node_fingerprint(node_list: list) -> frozenset:
+    return frozenset((n["node_type"], n["node_name"], n["content_hash"]) for n in node_list)
+
+
+def _find_duplicate_upload(nodes: list, filename: str) -> Optional[str]:
+    """
+    Fingerprint this upload's trackable nodes (type, name, content_hash) and
+    compare against every other file already in the bucket, using the same
+    parse_workflow_content extraction the rest of DSL Change Management
+    relies on. An exact match under a *different* filename means this upload
+    adds nothing new/changed to what's already tracked — most likely a
+    re-download saved under an auto-suffixed name (e.g. "Foo-3.yml") rather
+    than a genuine new file.
+
+    Can false-positive for a file that differs only outside tracked node
+    types (layout, untracked nodes, workflow-level settings) — rare, and
+    deliberately treated as a warning rather than a block for that reason.
+    """
+    new_fingerprint = _node_fingerprint(nodes)
+    if not new_fingerprint:
+        return None
+    for existing_name in _list_workflow_storage_files():
+        if existing_name == filename:
+            continue
+        _, existing_nodes, error = _download_and_parse_workflow(existing_name)
+        if error or not existing_nodes:
+            continue
+        if _node_fingerprint(existing_nodes) == new_fingerprint:
+            return existing_name
+    return None
+
+
+@app.post("/dsl/upload/check-duplicate")
+async def dsl_upload_check_duplicate(file: UploadFile = File(...)):
+    """
+    Read-only pre-check for the Upload Workflow UI: parses the selected file
+    and reports whether its tracked node content already matches another file
+    in Storage, *without* writing anything. Lets the frontend warn the user
+    before they click Upload, the same way the existing-filename overwrite
+    warning already does.
+    """
+    if not (file.filename.endswith(".yml") or file.filename.endswith(".yaml")):
+        raise HTTPException(status_code=400, detail="Only .yml/.yaml files are accepted")
+
+    content = await file.read()
+    nodes = _parse_upload_or_400(content, file.filename)
+    duplicate_of = _find_duplicate_upload(nodes, file.filename)
+
+    return {
+        "filename": file.filename,
+        "node_count": len(nodes),
+        "workflow_name": nodes[0]["workflow_name"] if nodes else Path(file.filename).stem,
+        "duplicate_of": duplicate_of,
+    }
+
+
 @app.post("/dsl/upload")
 async def dsl_upload_workflow(
     file: UploadFile = File(...),
@@ -801,17 +870,8 @@ async def dsl_upload_workflow(
         raise HTTPException(status_code=400, detail="Only .yml/.yaml files are accepted")
 
     content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty")
-
-    try:
-        nodes = parse_workflow_content(
-            content.decode("utf-8"), workflow_name_fallback=Path(file.filename).stem
-        )
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="File is not valid UTF-8 text")
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"Not valid Dify DSL YAML: {exc}")
+    nodes = _parse_upload_or_400(content, file.filename)
+    duplicate_of = _find_duplicate_upload(nodes, file.filename)
 
     try:
         supabase.storage.from_(WORKFLOW_BUCKET).upload(
@@ -828,6 +888,7 @@ async def dsl_upload_workflow(
         "node_count": len(nodes),
         "workflow_name": nodes[0]["workflow_name"] if nodes else Path(file.filename).stem,
         "uploaded_by": uploaded_by,
+        "duplicate_of": duplicate_of,
     }
 
 
