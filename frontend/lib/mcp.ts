@@ -268,7 +268,11 @@ export async function runMissingDocumentationCheck(claim_id: string): Promise<{
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || `Missing documentation check failed (${res.status})`);
-  return json;
+  // The Dify structured output occasionally returns this as the *string*
+  // "false" rather than a real JSON boolean — a non-empty string is truthy
+  // in JS, so left uncoerced this silently flips to "requirements met"
+  // everywhere the field is checked. Normalize defensively.
+  return { ...json, all_requirements_met: String(json.all_requirements_met).toLowerCase() === 'true' };
 }
 
 // ── DSL Scan ─────────────────────────────────────────────────────────────────

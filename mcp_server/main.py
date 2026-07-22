@@ -8,6 +8,7 @@ from pathlib import Path
 import concurrent.futures
 import json
 import os
+import requests
 import sys
 
 # dsl_manager lives at the repo root, one level up from this file. Add it to
@@ -369,6 +370,25 @@ PROMPT_VERSION_BUMPS = {
     "disability_assess_claim_v1.0": "disability_assess_claim_v1.2",
 }
 
+# model_version has the exact same staleness problem as prompt_version above — a static
+# default hardcoded into each *_Assess_Claim workflow's prepare_assessment_log_payload
+# code node (model_version="gpt-5.2"), never updated by Dify when an individual node's
+# model actually changes. Unlike prompt_version, the raw value Dify sends doesn't encode
+# which workflow it came from, so this is keyed on (workflow_type, raw_value) rather than
+# the raw value alone — otherwise a domain that's had its models swapped and one that
+# hasn't would collide on the same "gpt-5.2" key. Add an entry here whenever a
+# *_Assess_Claim workflow's real per-node model mix changes.
+#
+# ci_assess_claim (2026-07-23): extract_response_focus_assess, format_final_report, and
+# build_assessment_suggestion_context switched to gpt-5.4-mini to cut total pipeline
+# latency (the orchestrator's workflow-as-tool call to this sub-workflow was timing out
+# against its own ~60-70s full runtime); rule_by_rule_eligibility_check,
+# policy_document_analysis, synthesize_final_verdict, and llm_judge remain on gpt-5.2 —
+# the four steps where a weaker model carries real decision/quality risk.
+MODEL_VERSION_OVERRIDES = {
+    ("ci_assess_claim", "gpt-5.2"): "gpt-5.2 (+ gpt-5.4-mini: formatting/support nodes only)",
+}
+
 _mlflow_tracker = None
 
 
@@ -450,6 +470,89 @@ def _derive_rejection_reason(rule_checks: Optional[list]) -> Optional[str]:
     return None
 
 
+def _is_missing_docs_relevant(recommendation: Optional[str], rule_checks: Optional[list]) -> bool:
+    """
+    Same gating rule as the Audit Log's manual "Check missing documentation" button
+    (frontend/app/audit/page.tsx: isMissingDocsRelevant) — kept in sync deliberately,
+    since that's the only other place deciding whether the Advisor is worth calling
+    for a given claim. REFER always qualifies (assessment couldn't complete); REJECT
+    qualifies only when the failing mandatory rule's evidence pointed at
+    claim_documents, i.e. the rejection actually turned on documentation.
+    """
+    if recommendation == "REFER_FOR_FURTHER_REVIEW":
+        return True
+    if recommendation != "REJECT" or not rule_checks:
+        return False
+    return any(
+        rc.get("result") == "FAIL"
+        and str(rc.get("is_mandatory")).lower() == "true"
+        and any(str(f).startswith("claim_documents") for f in (rc.get("evidence_fields") or []))
+        for rc in rule_checks
+    )
+
+
+def _run_missing_docs_advisor(claim_id: str) -> Optional[dict]:
+    """
+    Calls the Missing_Documentation_Advisor Dify workflow app directly — same
+    contract as frontend/app/api/dify/missing-docs/route.ts, ported here so the
+    assessment pipeline can trigger it server-side without a round trip through
+    the frontend. Returns None (not an exception) if the app isn't configured on
+    this deployment, matching MLflowTracker's non-strict pattern elsewhere in
+    this file.
+    """
+    dify_url = os.getenv("DIFY_URL")
+    dify_key = os.getenv("DIFY_MISSING_DOCS_KEY")
+    if not dify_url or not dify_key:
+        print("Missing_Documentation_Advisor not configured (DIFY_URL / DIFY_MISSING_DOCS_KEY) — skipping auto-check")
+        return None
+
+    resp = requests.post(
+        f"{dify_url}/v1/workflows/run",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {dify_key}"},
+        json={
+            "inputs": {"claim_id": claim_id, "query": f"What documentation is missing for claim {claim_id}?"},
+            "response_mode": "blocking",
+            "user": "assessment-pipeline",
+        },
+        timeout=120,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    if body.get("data", {}).get("status") != "succeeded":
+        raise RuntimeError(f"Advisor workflow did not succeed: {body.get('data', {}).get('error')}")
+    parsed = json.loads(body.get("data", {}).get("outputs", {}).get("answer"))
+    # Same coercion as lib/mcp.ts's runMissingDocumentationCheck — Dify's structured
+    # output occasionally returns this as the string "false" rather than a real JSON
+    # boolean, which is truthy in Python/JS alike and would silently corrupt every
+    # downstream "is this claim complete" check if left uncoerced.
+    parsed["all_requirements_met"] = str(parsed.get("all_requirements_met")).strip().lower() == "true"
+    return parsed
+
+
+def _check_missing_docs_and_persist(claim_id: str) -> None:
+    """
+    Runs as a FastAPI BackgroundTask after an assessment log write, for claims that
+    qualify per _is_missing_docs_relevant — the automatic counterpart to a human
+    clicking "Check missing documentation" in the Audit Log. Non-strict: any
+    failure here must never affect the assessment log write it's attached to,
+    which has already succeeded and returned to the caller by the time this runs.
+    """
+    try:
+        result = _run_missing_docs_advisor(claim_id)
+        if result is None:
+            return
+        payload = {
+            "claim_id": claim_id,
+            "all_requirements_met": result.get("all_requirements_met", False),
+            "missing_documents": result.get("missing_documents") or [],
+            "submitted_documents_summary": result.get("submitted_documents_summary") or "",
+            "checked_by": "auto_pipeline",
+        }
+        supabase.table("missing_documentation_checks").insert(payload).execute()
+    except Exception as exc:  # noqa: BLE001
+        print(f"Auto missing-documentation check failed for {claim_id}: {exc}")
+
+
 @app.post("/assessment-logs")
 def create_assessment_log(
     log: AssessmentLogCreate,
@@ -471,6 +574,10 @@ def create_assessment_log(
 
     if data.get("prompt_version") in PROMPT_VERSION_BUMPS:
         data["prompt_version"] = PROMPT_VERSION_BUMPS[data["prompt_version"]]
+
+    model_override_key = (data.get("workflow_type"), data.get("model_version"))
+    if model_override_key in MODEL_VERSION_OVERRIDES:
+        data["model_version"] = MODEL_VERSION_OVERRIDES[model_override_key]
 
     # judge_comments has no assessment_logs column (logged to MLflow as an artifact
     # instead) — pop it out before the insert, but keep it in mlflow_data for the
@@ -517,6 +624,15 @@ def create_assessment_log(
     # have it once the background task completes, same as status_cross_check below.
     if result.get("log_id"):
         background_tasks.add_task(_log_assessment_to_mlflow_and_persist, mlflow_data, result["log_id"])
+
+    # Auto-trigger the Missing_Documentation_Advisor for claims where this assessment
+    # itself signals a documentation problem (REFER, or REJECT on doc-related mandatory
+    # evidence) — same gating a human uses manually from the Audit Log, just automatic
+    # and non-blocking (background task, mirroring the MLflow write above) so every
+    # future qualifying claim gets flagged right away instead of waiting on someone to
+    # click the button.
+    if data.get("claim_id") and _is_missing_docs_relevant(data.get("recommendation"), data.get("rule_checks")):
+        background_tasks.add_task(_check_missing_docs_and_persist, data["claim_id"])
 
     # Write-back (pending claims) / status cross-check (already-decided claims) — mutually
     # exclusive by construction, matching "claim intake" vs. "audit re-check" semantics.

@@ -16,6 +16,24 @@ function toPercent(score: number): number {
   return Math.min(100, Math.round(score));
 }
 
+// The Missing_Documentation_Advisor free-texts document_type per claim rather than
+// picking from a fixed list, so the same real document shows up under different
+// phrasing ("attending_physician_medical_report" vs "Attending physician's medical
+// report"). Bucket by keyword into a small set of canonical categories so the
+// dashboard's frequency list reflects real repeats instead of near-duplicate
+// singletons. Order matters — check the more specific terms before the generic
+// "medical report" catch-all.
+function canonicalDocType(raw: string): string {
+  const s = raw.toLowerCase();
+  if (s.includes('death certificate')) return 'Death Certificate';
+  if (s.includes('attending physician') || s.includes('attending_physician')) return "Attending Physician's Medical Report";
+  if (s.includes('specialist')) return 'Specialist Medical Report';
+  if (s.includes('neuroimaging') || s.includes('neurology')) return 'Neuroimaging / Neurology Assessment';
+  if (s.includes('police') || s.includes('coroner')) return 'Police / Coroner Report';
+  if (s.includes('medical_report') || s.includes('medical report')) return 'Medical Report (General)';
+  return raw;
+}
+
 const COLOURS = {
   APPROVE: '#22c55e',
   REJECT: '#ef4444',
@@ -158,14 +176,22 @@ export default function DashboardPage() {
     }
     return Object.values(byClaimId);
   })();
+  // "Complete" is everything else, not just the claims that happened to get a manual
+  // documentation check — otherwise this chart only ever reflects the tiny, incidentally
+  // -checked sample (see isMissingDocsRelevant in audit/page.tsx) rather than the real
+  // proportion of assessed claims with an actual confirmed documentation problem.
+  const claimsConfirmedMissingDocs = new Set(
+    latestMissingDocsChecks.filter(c => !c.all_requirements_met).map(c => c.claim_id)
+  );
   const docCompletionData = [
-    { name: 'Complete', value: latestMissingDocsChecks.filter(c => c.all_requirements_met).length },
-    { name: 'Missing Docs', value: latestMissingDocsChecks.filter(c => !c.all_requirements_met).length },
+    { name: 'Complete', value: Math.max(0, distinctClaimsAssessed - claimsConfirmedMissingDocs.size) },
+    { name: 'Missing Docs', value: claimsConfirmedMissingDocs.size },
   ];
   const missingDocTypeCounts: Record<string, number> = {};
   latestMissingDocsChecks.forEach(c => {
     (c.missing_documents || []).forEach(d => {
-      missingDocTypeCounts[d.document_type] = (missingDocTypeCounts[d.document_type] || 0) + 1;
+      const category = canonicalDocType(d.document_type);
+      missingDocTypeCounts[category] = (missingDocTypeCounts[category] || 0) + 1;
     });
   });
   const missingDocTypeData = Object.entries(missingDocTypeCounts)
@@ -439,15 +465,20 @@ export default function DashboardPage() {
 
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Most Commonly Missing Document Types</h2>
+            {/* Ranked list, not a bar chart — at this sample size counts are mostly 1-2 and
+                often tied, which reads as noise on a bar axis. A list ranks the same info
+                without implying a scale that isn't there yet. */}
             {missingDocTypeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={missingDocTypeData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                  <XAxis type="number" tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={110} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#f97316" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <ul className="divide-y divide-gray-100 text-sm max-h-[200px] overflow-y-auto">
+                {missingDocTypeData.map(d => (
+                  <li key={d.name} className="py-2 flex items-start justify-between gap-4">
+                    <span className="text-gray-700">{d.name}</span>
+                    <span className="text-xs text-orange-700 bg-orange-50 rounded-full px-2 py-0.5 whitespace-nowrap shrink-0">
+                      {d.value}×
+                    </span>
+                  </li>
+                ))}
+              </ul>
             ) : (
               <div className="text-sm text-gray-400 text-center py-16">No missing documents recorded — all checked claims are complete.</div>
             )}
