@@ -616,7 +616,6 @@ export default function AuditPage() {
                             <p><span className="text-gray-500">Rules passed:</span> {log.total_rules_passed ?? '—'}</p>
                             <p><span className="text-gray-500">Mandatory failed:</span> {log.mandatory_rules_failed ?? '—'}</p>
                             <p><span className="text-gray-500">Coverage:</span> {log.coverage_conclusion || '—'}</p>
-                            <p><span className="text-gray-500">Model:</span> {log.model_version || '—'}</p>
                             <p><span className="text-gray-500">Prompt version:</span> {log.prompt_version || '—'}</p>
                             {log.status_cross_check === 'MISMATCH' && (
                               <p className="text-amber-700 bg-amber-50 rounded-md px-2 py-1.5 mt-1">

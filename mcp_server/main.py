@@ -382,11 +382,19 @@ PROMPT_VERSION_BUMPS = {
 # ci_assess_claim (2026-07-23): extract_response_focus_assess, format_final_report, and
 # build_assessment_suggestion_context switched to gpt-5.4-mini to cut total pipeline
 # latency (the orchestrator's workflow-as-tool call to this sub-workflow was timing out
-# against its own ~60-70s full runtime); rule_by_rule_eligibility_check,
-# policy_document_analysis, synthesize_final_verdict, and llm_judge remain on gpt-5.2 —
-# the four steps where a weaker model carries real decision/quality risk.
+# against its own ~60-70s full runtime).
+#
+# ci_assess_claim (2026-07-23, follow-up): policy_document_analysis also switched to
+# gpt-5.4-mini after rule_by_rule_eligibility_check + policy_document_analysis were
+# parallelized wasn't enough alone — this node was consistently the single largest
+# contributor (~17-27s). Verified against 4 real runs on the same claim (2 before, 2
+# after): judge scores stayed flat (overall 3.62-4.0 across all 4, no downward trend;
+# hallucination-risk if anything ticked up slightly) while elapsed time dropped from
+# ~65-67s to ~47-52s. rule_by_rule_eligibility_check, synthesize_final_verdict, and
+# llm_judge remain on gpt-5.2 — the steps where a weaker model still carries real
+# decision/quality risk.
 MODEL_VERSION_OVERRIDES = {
-    ("ci_assess_claim", "gpt-5.2"): "gpt-5.2 (+ gpt-5.4-mini: formatting/support nodes only)",
+    ("ci_assess_claim", "gpt-5.2"): "gpt-5.2 (+ gpt-5.4-mini: policy_document_analysis + formatting/support nodes)",
 }
 
 _mlflow_tracker = None
@@ -553,6 +561,69 @@ def _check_missing_docs_and_persist(claim_id: str) -> None:
         print(f"Auto missing-documentation check failed for {claim_id}: {exc}")
 
 
+def _write_back_status_and_cross_check(
+    claim_id: str,
+    recommendation: str,
+    rule_checks: Optional[list],
+    log_id: Optional[str],
+    skip_status_update: bool,
+) -> None:
+    """
+    Write-back (pending claims) / status cross-check (already-decided claims) — mutually
+    exclusive by construction, matching "claim intake" vs. "audit re-check" semantics. A
+    freshly-submitted ("pending") claim gets its status finalized by the outcome of its
+    first real assessment. A claim that already has a decided status is left untouched
+    (re-assessing one of those must never silently overwrite the existing historical
+    record) — instead, this records whether the fresh, independent assessment agrees with
+    what's already on record, purely observational, with zero influence on the verdict
+    itself (computed entirely after the fact, from data already sent to this endpoint).
+
+    Runs as a FastAPI BackgroundTask — this is 2-3 sequential Supabase round trips (a
+    status lookup, then either a claims update or an assessment_logs update) that used to
+    sit in the synchronous response path for a purely observational side effect, adding
+    real latency (measured contributing to write_assessment_log's ~3.3s node time in a
+    live Dify trace) to every single assessment write. Moved off the response path the
+    same way MLflow logging already was — see _log_assessment_to_mlflow_and_persist.
+    """
+    try:
+        claim_resp = supabase.table("claims").select("status,rejection_reason").eq("claim_id", claim_id).execute()
+        current_status = claim_resp.data[0]["status"] if claim_resp.data else None
+        current_rejection_reason = claim_resp.data[0].get("rejection_reason") if claim_resp.data else None
+    except Exception as exc:  # noqa: BLE001
+        print(f"could not read claims.status for {claim_id}: {exc}")
+        return
+
+    if not skip_status_update and current_status == "pending":
+        try:
+            update = {"status": CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]}
+            if recommendation == "REJECT":
+                reason = _derive_rejection_reason(rule_checks)
+                if reason:
+                    update["rejection_reason"] = reason
+            supabase.table("claims").update(update).eq("claim_id", claim_id).execute()
+        except Exception as exc:  # noqa: BLE001
+            # Never let the write-back block the assessment log write — that's the
+            # core governance record and must succeed regardless of this side effect.
+            print(f"claims.status write-back failed for {claim_id}: {exc}")
+    elif current_status and current_status != "pending" and log_id:
+        expected_status = CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]
+        cross_check_update = {"status_cross_check": "CONSISTENT" if expected_status == current_status else "MISMATCH"}
+        if cross_check_update["status_cross_check"] == "MISMATCH":
+            note = f"recorded status is '{current_status}'"
+            if current_rejection_reason:
+                note += f" (reason: {current_rejection_reason})"
+            note += f", but AI recommendation is '{recommendation}'"
+            cross_check_update["status_cross_check_note"] = note
+        try:
+            # Separate update, not part of the main insert — status_cross_check is a
+            # column that may not exist yet on a given deployment (see PROJECT_CONTEXT.md's
+            # ALTER TABLE note); isolating it here means a missing column only drops this
+            # observational field, never the assessment log itself.
+            supabase.table("assessment_logs").update(cross_check_update).eq("log_id", log_id).execute()
+        except Exception as exc:  # noqa: BLE001
+            print(f"status_cross_check update failed for log {log_id}: {exc}")
+
+
 @app.post("/assessment-logs")
 def create_assessment_log(
     log: AssessmentLogCreate,
@@ -634,56 +705,18 @@ def create_assessment_log(
     if data.get("claim_id") and _is_missing_docs_relevant(data.get("recommendation"), data.get("rule_checks")):
         background_tasks.add_task(_check_missing_docs_and_persist, data["claim_id"])
 
-    # Write-back (pending claims) / status cross-check (already-decided claims) — mutually
-    # exclusive by construction, matching "claim intake" vs. "audit re-check" semantics.
-    # A freshly-submitted ("pending") claim gets its status finalized by the outcome of its
-    # first real assessment. A claim that already has a decided status is left untouched
-    # (re-assessing one of those must never silently overwrite the existing historical
-    # record) — instead, this records whether the fresh, independent assessment agrees with
-    # what's already on record, purely observational, with zero influence on the verdict
-    # itself (computed entirely after the fact, from data already sent to this endpoint).
+    # Write-back / cross-check is a purely observational side effect (see
+    # _write_back_status_and_cross_check's docstring) — scheduled as a background task,
+    # like the MLflow write above, instead of 2-3 synchronous Supabase round trips on
+    # every single assessment.
     claim_id = data.get("claim_id")
     recommendation = data.get("recommendation")
     log_id = result.get("log_id")
     if claim_id and recommendation in CLAIM_STATUS_FROM_RECOMMENDATION:
-        try:
-            claim_resp = supabase.table("claims").select("status,rejection_reason").eq("claim_id", claim_id).execute()
-            current_status = claim_resp.data[0]["status"] if claim_resp.data else None
-            current_rejection_reason = claim_resp.data[0].get("rejection_reason") if claim_resp.data else None
-        except Exception as exc:  # noqa: BLE001
-            print(f"could not read claims.status for {claim_id}: {exc}")
-            current_status = None
-            current_rejection_reason = None
-
-        if not skip_status_update and current_status == "pending":
-            try:
-                update = {"status": CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]}
-                if recommendation == "REJECT":
-                    reason = _derive_rejection_reason(data.get("rule_checks"))
-                    if reason:
-                        update["rejection_reason"] = reason
-                supabase.table("claims").update(update).eq("claim_id", claim_id).execute()
-            except Exception as exc:  # noqa: BLE001
-                # Never let the write-back block the assessment log write — that's the
-                # core governance record and must succeed regardless of this side effect.
-                print(f"claims.status write-back failed for {claim_id}: {exc}")
-        elif current_status and current_status != "pending" and log_id:
-            expected_status = CLAIM_STATUS_FROM_RECOMMENDATION[recommendation]
-            cross_check_update = {"status_cross_check": "CONSISTENT" if expected_status == current_status else "MISMATCH"}
-            if cross_check_update["status_cross_check"] == "MISMATCH":
-                note = f"recorded status is '{current_status}'"
-                if current_rejection_reason:
-                    note += f" (reason: {current_rejection_reason})"
-                note += f", but AI recommendation is '{recommendation}'"
-                cross_check_update["status_cross_check_note"] = note
-            try:
-                # Separate update, not part of the main insert above — status_cross_check
-                # is a new column that may not exist yet on a given deployment (see
-                # PROJECT_CONTEXT.md's ALTER TABLE note); isolating it here means a missing
-                # column only drops this observational field, never the assessment log itself.
-                supabase.table("assessment_logs").update(cross_check_update).eq("log_id", log_id).execute()
-            except Exception as exc:  # noqa: BLE001
-                print(f"status_cross_check update failed for log {log_id}: {exc}")
+        background_tasks.add_task(
+            _write_back_status_and_cross_check,
+            claim_id, recommendation, data.get("rule_checks"), log_id, skip_status_update,
+        )
 
     return result
 
